@@ -7,7 +7,6 @@ local addonName, PUF = ...
 -- protected operation (position, size, unit watch) out of combat.
 --------------------------------------------------------------------------------
 
-local PeaversCommons = _G.PeaversCommons
 local Style = PUF.Style
 local UnitFrame = PUF.UnitFrame
 

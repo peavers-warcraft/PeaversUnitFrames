@@ -23,7 +23,6 @@ PUF.AuraRow = AuraRow
 AuraRow.__index = AuraRow
 
 local IsSecret = Style.IsSecret
-local Safe = Style.Safe
 local Present = Style.Present
 local IsSecretTable = Style.IsSecretTable
 
@@ -78,7 +77,7 @@ end
 
 -- baseFilter: "HELPFUL" or "HARMFUL". The composed filter, including any user
 -- narrowing, is set separately through SetFilter.
-function AuraRow:New(parent, unit, baseFilter)
+function AuraRow.New(_, parent, unit, baseFilter)
     local self = setmetatable({}, AuraRow)
     self.unit = unit
     self.baseFilter = baseFilter

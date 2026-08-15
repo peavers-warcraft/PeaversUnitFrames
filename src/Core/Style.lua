@@ -168,8 +168,8 @@ end
 -- Reject a filter string the client would not accept, rather than letting
 -- AddAuraGroup fail and silently empty the row.
 function Style.IsValidFilter(filter)
-    if AuraUtil and AuraUtil.IsValidFilterString then
-        local ok, valid = pcall(AuraUtil.IsValidFilterString, filter)
+    if AuraUtil and AuraUtil["IsValidFilterString"] then
+        local ok, valid = pcall(AuraUtil["IsValidFilterString"], filter)
         if ok then return valid and true or false end
     end
     return true
@@ -309,7 +309,7 @@ function Style.GetUnitColor(unit, cfg)
         local class = Safe(function() return select(2, UnitClass(unit)) end)
         -- The class token has to be readable before it can be used as a key.
         if not IsSecret(class) and class then
-            local color = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[class])
+            local color = (_G.CUSTOM_CLASS_COLORS and _G.CUSTOM_CLASS_COLORS[class])
                 or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[class])
             if color then return color end
         end

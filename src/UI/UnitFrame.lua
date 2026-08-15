@@ -27,7 +27,7 @@ local INSET = 1
 -- Construction
 --------------------------------------------------------------------------------
 
-function UnitFrame:New(key, unit)
+function UnitFrame.New(_, key, unit)
     local self = setmetatable({}, UnitFrame)
     self.key = key
     self.unit = unit
