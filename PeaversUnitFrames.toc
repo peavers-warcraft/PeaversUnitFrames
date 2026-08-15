@@ -3,7 +3,7 @@
 ## Title: |cff3abdf7Peavers|rUnitFrames
 ## Notes: Clean player, target, target of target and focus frames with cast bars and auras
 ## Author: Peavers
-## Version: 1.0.1
+## Version: 1.0.2
 
 ## IconTexture: Interface\AddOns\PeaversCommons\src\Media\Icon.tga
 ## Category-enUS: Peavers
