@@ -32,7 +32,7 @@ local DIRECTION_ELAPSED = 0
 
 local FADE_TIME = 0.4
 
-function CastBar:New(parent, unit)
+function CastBar.New(_, parent, unit)
     local self = setmetatable({}, CastBar)
     self.unit = unit
 

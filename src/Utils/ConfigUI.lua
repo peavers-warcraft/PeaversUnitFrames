@@ -165,13 +165,13 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
 
     ----------------------------------------------------------------------------
 
-    local label = Config.UNIT_LABELS[unitKey] or unitKey
+    local unitLabel = Config.UNIT_LABELS[unitKey] or unitKey
 
     local copyButton = W:CreateButton(parentFrame, "Copy to All Frames", {
         variant = "secondary",
         width = 170,
         onClick = function()
-            StaticPopup_Show("PEAVERSUNITFRAMES_COPY_TO_ALL", label, nil, unitKey)
+            StaticPopup_Show("PEAVERSUNITFRAMES_COPY_TO_ALL", unitLabel, nil, unitKey)
         end,
     })
     Place(copyButton, ROW)
