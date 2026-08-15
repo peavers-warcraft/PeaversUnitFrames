@@ -1,0 +1,62 @@
+# PeaversUnitFrames
+
+[![AddonSentry](https://addonsentry.io/api/public/repos/peavers-warcraft/PeaversUnitFrames/badge.svg)](https://addonsentry.io/dashboard/peavers-warcraft/PeaversUnitFrames)
+
+A World of Warcraft addon providing clean player, target, target of target and focus frames with cast bars, buffs and debuffs.
+
+## Features
+
+<!-- peavers:features -->
+- Four frames and nothing else: player, target, target of target, and focus
+- Flat modern bars — class or reaction coloured health, a thin power strip, name and health text
+- A cast bar per frame with the spell icon, name, and remaining time
+- Buff and debuff rows above and below each frame, with stacks, timers, and dispel-type borders
+- Per-frame aura filtering by caster (everyone's / only mine / only others) and by category — cancelable buffs, major defensives, debuffs you can dispel, crowd control
+- Every setting is per frame — size, texture, colours, font, cast bar and aura rows are configured independently for each of the four frames, with a Copy to All Frames button when you want them to match
+- Drag handles for positioning, with positions saved per character as screen-centre offsets
+- Hides the default Blizzard unit frames and cast bar
+- Built for Midnight: bars are driven by the display APIs that keep working when the client hands addons protected values
+<!-- /peavers:features -->
+
+## Usage
+
+<!-- peavers:usage -->
+Open the settings with `/puf`, then use **Unlock Frames** to drag each frame into place.
+
+### Slash Commands
+
+- `/puf` - Open settings
+- `/puf unlock` - Show the drag handles
+- `/puf lock` - Hide the drag handles
+- `/puf reset` - Reset every frame position
+<!-- /peavers:usage -->
+
+## Notes on Midnight
+
+Since 12.0 the client returns *secret values* for restricted unit data — health, names,
+auras and casts inside encounters, Mythic+, and rated PvP. Addons may hand those values
+to widgets but may not do arithmetic on them, so this addon:
+
+- draws health and power from `UnitHealthPercent` / `UnitPowerPercent`, which return plain
+  display percentages
+- displays auras through the `AuraContainer` object, letting the client fill in icons and
+  timers it will not expose to Lua
+- drives cast bars from a `DurationObject` when the cast times themselves are protected
+- falls back to a percentage whenever an exact health number cannot be read
+
+## Installation
+
+### Recommended: PeaversUpdater
+
+Download and install [PeaversUpdater](https://github.com/peavers-warcraft/PeaversUpdater/releases/latest), the desktop updater for the whole Peavers collection. It installs PeaversUnitFrames together with its required dependencies and delivers updates before they reach CurseForge.
+
+### Alternative: CurseForge
+
+1. Download from [CurseForge](https://www.curseforge.com/wow/addons/peaversunitframes)
+2. Ensure [PeaversCommons](https://www.curseforge.com/wow/addons/peaverscommons) is also installed
+3. Ensure [PeaversConfig](https://www.curseforge.com/wow/addons/peaversconfig) is also installed
+4. Enable the addon on the character selection screen
+
+---
+
+*Part of the [Peavers](https://peavers.io) addon collection · [Report an issue](https://github.com/peavers-warcraft/PeaversUnitFrames/issues) · [Support development on Patreon](https://www.patreon.com/Peavers)*

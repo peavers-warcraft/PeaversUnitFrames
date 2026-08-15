@@ -1,0 +1,34 @@
+## Interface: 120001, 120005, 120007, 120100
+
+## Title: |cff3abdf7Peavers|rUnitFrames
+## Notes: Clean player, target, target of target and focus frames with cast bars and auras
+## Author: Peavers
+## Version: 1.0.0
+
+## IconTexture: Interface\AddOns\PeaversCommons\src\Media\Icon.tga
+## Category-enUS: Peavers
+
+## X-Website: https://peavers.io
+## X-Source-Code: https://github.com/peavers-warcraft/PeaversUnitFrames
+## X-Curse-Project-ID: 1654227
+
+## Dependencies: PeaversCommons, PeaversConfig
+## SavedVariables: PeaversUnitFramesDB
+
+Changelog.lua
+
+src\Utils\Config.lua
+
+src\Core\Style.lua
+src\Core\Blizzard.lua
+
+src\UI\CastBar.lua
+src\UI\Auras.lua
+src\UI\UnitFrame.lua
+
+src\Core\Core.lua
+
+src\Utils\ConfigUI.lua
+src\Utils\Patrons.lua
+
+src\Main.lua

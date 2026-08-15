@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: PeaversUnitFrames
+  description: "A World of Warcraft addon providing clean player, target, target of target and focus frames with cast bars, buffs and debuffs."
+  annotations:
+    github.com/project-slug: peavers-warcraft/PeaversUnitFrames
+spec:
+  type: library
+  lifecycle: production
+  owner: peavers-warcraft

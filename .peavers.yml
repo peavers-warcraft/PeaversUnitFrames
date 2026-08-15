@@ -1,0 +1,13 @@
+# .peavers.yml - Addon metadata for peavers.io website
+
+# Icon to display on website
+iconType: PartyRuneIcon
+
+# CurseForge project ID for download statistics
+curseForgeProjectId: 1654227
+
+# Tags for filtering and categorization
+tags:
+  - interface
+  - unit-frames
+  - combat
