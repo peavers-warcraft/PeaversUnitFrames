@@ -168,8 +168,9 @@ end
 -- Reject a filter string the client would not accept, rather than letting
 -- AddAuraGroup fail and silently empty the row.
 function Style.IsValidFilter(filter)
-    if AuraUtil and AuraUtil["IsValidFilterString"] then
-        local ok, valid = pcall(AuraUtil["IsValidFilterString"], filter)
+    local validator = AuraUtil and rawget(AuraUtil, "IsValidFilterString")
+    if validator then
+        local ok, valid = pcall(validator, filter)
         if ok then return valid and true or false end
     end
     return true
