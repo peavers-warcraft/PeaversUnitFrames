@@ -191,6 +191,11 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
     Slider("Width", "width", 80, 400, 2)
     Slider("Height", "height", 16, 100, 1)
     Slider("Background Opacity", "bgAlpha", 0, 1, 0.05)
+    Dropdown("Tooltip", "tooltip", {
+        { value = "always", label = "Always show" },
+        { value = "ooc", label = "Hide in combat" },
+        { value = "never", label = "Never show" },
+    }, "always")
 
     Section("Position")
 
@@ -304,6 +309,8 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
         { value = "cancelable", label = "Cancelable only" },
         { value = "defensive", label = "Major defensives only" },
     }, "any")
+    Checkbox("Always Show Mount", "showMount",
+        "A dedicated slot above the buff row, unaffected by the filters above.")
 
     Section("Debuffs")
     Checkbox("Show Debuffs", "showDebuffs")

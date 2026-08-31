@@ -59,7 +59,8 @@ asserted.
 - A cast bar per frame with the spell icon, name, and remaining time
 - Buff and debuff rows above and below each frame, with stacks, timers, and dispel-type borders
 - Per-frame aura filtering by caster (everyone's / only mine / only others) and by category — cancelable buffs, major defensives, debuffs you can dispel, crowd control
-- Every setting is per frame — size, texture, colours, font, cast bar and aura rows are configured independently for each of the four frames, with a Copy to All Frames button when you want them to match
+- Every setting is per frame — size, texture, colours, font, tooltip, cast bar and aura rows are configured independently for each of the four frames, with a Copy to All Frames button when you want them to match
+- Mouseover tooltips can be shown always, hidden in combat, or turned off entirely, per frame
 - Drag handles for positioning, with positions saved per character as screen-centre offsets
 - Hides the default Blizzard unit frames and cast bar
 - Built for Midnight: bars are driven by the display APIs that keep working when the client hands addons protected values

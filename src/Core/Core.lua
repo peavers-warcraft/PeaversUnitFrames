@@ -75,6 +75,7 @@ function Core:BuildEventFrame()
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("UNIT_TARGET")
     frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    frame:RegisterEvent("PLAYER_REGEN_DISABLED")
 
     frame:SetScript("OnEvent", function(_, event, unit, ...)
         self:OnEvent(event, unit, ...)
@@ -109,6 +110,13 @@ function Core:OnEvent(event, unit)
     if event == "PLAYER_ENTERING_WORLD" then
         PUF.Blizzard:Apply()
         self:RefreshAll()
+        return
+    end
+
+    if event == "PLAYER_REGEN_DISABLED" then
+        for _, unitFrame in pairs(self.frames) do
+            unitFrame:HideTooltipForCombat()
+        end
         return
     end
 

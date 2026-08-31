@@ -141,25 +141,46 @@ end
 Style.AURA_CONTAINER_TEMPLATE = "CustomAuraContainerTemplate"
 
 local auraContainerSupported
+local auraContainerReason = "not probed"
+
+-- Why the container path is or is not available. Reported by /puf debug, because
+-- every failure here degrades to the scan fallback, and that fallback looks
+-- identical to "working" right up until the unit's auras are restricted.
+function Style.GetAuraContainerReason()
+    return auraContainerReason
+end
 
 function Style.SupportsAuraContainer()
     if auraContainerSupported ~= nil then return auraContainerSupported end
-    if InCombatLockdown() then return false end
+
+    if InCombatLockdown() then
+        auraContainerReason = "deferred (in combat)"
+        return false
+    end
 
     local build = select(4, GetBuildInfo())
     if type(build) ~= "number" or build < 120100 then
         auraContainerSupported = false
+        auraContainerReason = "build " .. tostring(build) .. " < 120100"
         return false
     end
 
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, UIParent,
+    local ok, container, err = pcall(CreateFrame, "AuraContainer", nil, UIParent,
         Style.AURA_CONTAINER_TEMPLATE)
-    if not ok or not container then
+    if not ok then
         auraContainerSupported = false
+        auraContainerReason = "CreateFrame failed: " .. tostring(container)
+        return false
+    end
+    if not container then
+        auraContainerSupported = false
+        auraContainerReason = "CreateFrame returned nil"
         return false
     end
 
     auraContainerSupported = (type(container.AddAuraGroup) == "function")
+    auraContainerReason = auraContainerSupported and "ok"
+        or ("template '" .. Style.AURA_CONTAINER_TEMPLATE .. "' gave no AddAuraGroup")
     pcall(container.Hide, container)
 
     return auraContainerSupported
@@ -549,12 +570,15 @@ function Style.Diagnose(unit)
 
         -- An unrecognised filter token makes AddAuraGroup fail, which shows up
         -- as an empty row with nothing else to explain it.
-        for label, row in pairs({ buffs = frame.buffs, debuffs = frame.debuffs }) do
+        for label, row in pairs({ buffs = frame.buffs, debuffs = frame.debuffs, mount = frame.mount }) do
             if row then
                 add("  %s: filter='%s' enabled=%s path=%s max=%s",
                     label, tostring(row.filter), tostring(row.enabled and true or false),
                     row.usingContainer and "container" or "scan",
                     tostring(row.count))
+                if not row.usingContainer and row.containerFailReason then
+                    add("    scan because: %s", tostring(row.containerFailReason))
+                end
             end
         end
     end

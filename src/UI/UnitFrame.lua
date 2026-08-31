@@ -79,6 +79,9 @@ function UnitFrame.New(_, key, unit)
     self.castBar = CastBar:New(button, unit)
     self.buffs = AuraRow:New(button, unit, "HELPFUL")
     self.debuffs = AuraRow:New(button, unit, "HARMFUL")
+    -- A single slot pinned to the right of the buff row, so the mount stays put
+    -- regardless of how the buffs themselves are filtered or how many there are.
+    self.mount = AuraRow:New(button, unit, "HELPFUL")
 
     self:BuildMover()
 
@@ -86,9 +89,24 @@ function UnitFrame.New(_, key, unit)
 end
 
 function UnitFrame:OnEnter(frame)
+    local mode = PUF.Config:GetUnit(self.key).tooltip or "always"
+
+    if mode == "never" then return end
+    if mode == "ooc" and InCombatLockdown() then return end
+
     GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
     GameTooltip:SetUnit(self.unit)
     GameTooltip:Show()
+end
+
+-- Drop a tooltip that is already up when combat starts. Without this, hovering a
+-- frame as the pull happens leaves the tooltip on screen for the whole fight,
+-- which is exactly what the "out of combat" setting is meant to avoid.
+function UnitFrame:HideTooltipForCombat()
+    if (PUF.Config:GetUnit(self.key).tooltip or "always") ~= "ooc" then return end
+    if GameTooltip:GetOwner() == self.button then
+        GameTooltip:Hide()
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -250,6 +268,18 @@ function UnitFrame:ApplyLayout()
         cfg.maxBuffs or 8, auraSize, auraSpacing)
     self.buffs:SetEnabled(cfg.showBuffs and true or false)
 
+    -- One row above the buffs, left-aligned with the first buff icon. Anchored to
+    -- the buff row rather than the frame so it tracks the buffs' own position and
+    -- can never overlap them, however many there are.
+    local showMount = cfg.showMount and true or false
+    self.mount:SetConfig(cfg)
+    self.mount:SetCandidateFilters(showMount
+        and { includeSpellIDs = AuraRow.GetMountSpellIDs() }
+        or nil)
+    self.mount:Layout(self.buffs.frame, "BOTTOMLEFT", "TOPLEFT", 0, auraSpacing,
+        1, auraSize, auraSpacing)
+    self.mount:SetEnabled(showMount)
+
     local debuffOffset = -4 - (showCast and (castHeight + 4) or 0)
     self.debuffs:Layout(button, "TOPLEFT", "BOTTOMLEFT", 0, debuffOffset,
         cfg.maxDebuffs or 8, auraSize, auraSpacing)
@@ -300,6 +330,7 @@ end
 function UnitFrame:UpdateAuras()
     self.buffs:Update()
     self.debuffs:Update()
+    self.mount:Update()
 end
 
 -- Runs whether or not the unit exists: appearance changes have to land on a

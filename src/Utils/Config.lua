@@ -32,6 +32,10 @@ local function UnitDefaults(overrides)
         x = 0,
         y = 0,
         bgAlpha = 0.85,
+        -- When the unit tooltip appears on mouseover: always | ooc | never.
+        -- "ooc" is the usual compromise: useful while inspecting something, out
+        -- of the way once the fight starts.
+        tooltip = "always",
 
         -- Bars
         barTexture = "Interface\\TargetingFrame\\UI-StatusBar",
@@ -62,6 +66,9 @@ local function UnitDefaults(overrides)
         -- Auras
         showBuffs = true,
         maxBuffs = 8,
+        -- A dedicated slot next to the buff row that only ever holds the unit's
+        -- mount, so it survives whatever the buff filters are set to.
+        showMount = false,
         showDebuffs = true,
         maxDebuffs = 8,
         auraSize = 20,
@@ -96,7 +103,7 @@ local PUF_DEFAULTS = {
 
     units = {
         player = UnitDefaults({ x = -270, y = -200 }),
-        target = UnitDefaults({ x = 270, y = -200 }),
+        target = UnitDefaults({ x = 270, y = -200, showMount = true }),
         targettarget = UnitDefaults({
             x = 470, y = -200,
             width = 120, height = 28,
@@ -112,6 +119,7 @@ local PUF_DEFAULTS = {
             width = 180, height = 36,
             showBuffs = false, maxBuffs = 6,
             maxDebuffs = 6,
+            showMount = true,
             auraSize = 18,
         }),
     },

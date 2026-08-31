@@ -135,6 +135,47 @@ function AuraRow:SetFilter(filter)
     self.filter = filter or self.baseFilter
 end
 
+-- A spell-id whitelist handed to the client alongside the filter string. Used for
+-- the mount slot: there is no "is a mount" filter token, and the addon cannot
+-- look at an aura to work it out, so the client is given every mount's spell id
+-- and does the matching itself.
+function AuraRow:SetCandidateFilters(candidateFilters)
+    self.candidateFilters = candidateFilters
+end
+
+--------------------------------------------------------------------------------
+-- Mount spell ids
+--
+-- Built once from the mount journal, which lists every mount in the game rather
+-- than just the collected ones - the point is to identify someone else's mount.
+--------------------------------------------------------------------------------
+
+local mountSpellIDs
+
+function AuraRow.GetMountSpellIDs()
+    if mountSpellIDs then return mountSpellIDs end
+    if not (C_MountJournal and C_MountJournal.GetMountIDs) then return nil end
+
+    local ids = Safe(C_MountJournal.GetMountIDs)
+    if not ids then return nil end
+
+    local map, count = {}, 0
+    for _, mountID in ipairs(ids) do
+        local _, spellID = Safe(C_MountJournal.GetMountInfoByID, mountID)
+        if spellID then
+            map[spellID] = true
+            count = count + 1
+        end
+    end
+
+    -- Not cached when empty: the journal can answer before it is populated, and
+    -- caching that would leave the mount slot permanently blank for the session.
+    if count == 0 then return nil end
+
+    mountSpellIDs = map
+    return map
+end
+
 --------------------------------------------------------------------------------
 -- Layout
 --
@@ -161,13 +202,17 @@ end
 --------------------------------------------------------------------------------
 
 function AuraRow:BuildContainer()
-    if not Style.SupportsAuraContainer() then return false end
+    if not Style.SupportsAuraContainer() then
+        self.containerFailReason = Style.GetAuraContainerReason()
+        return false
+    end
 
     -- Aura groups are add-only - there is no way to remove one or change its
     -- filter in place - so capacity and filter together decide whether the
     -- container can be kept. A size change just re-styles the buttons it already
     -- handed us, which avoids stranding a frame on every slider tick.
     local signature = tostring(self.count) .. "|" .. tostring(self.filter)
+        .. "|" .. (self.candidateFilters and "candidates" or "any")
 
     if self.container and self.containerSignature == signature then
         for _, button in ipairs(self.containerButtons) do
@@ -187,20 +232,24 @@ function AuraRow:BuildContainer()
     local ok, container = pcall(CreateFrame, "AuraContainer", nil, self.frame,
         Style.AURA_CONTAINER_TEMPLATE)
     if not ok or not container or type(container.AddAuraGroup) ~= "function" then
+        self.containerFailReason = "CreateFrame/AddAuraGroup unavailable: " .. tostring(container)
         return false
     end
 
     container:SetAllPoints(self.frame)
 
-    if not pcall(container.SetUnit, container, self.unit) then
+    local unitOk, unitErr = pcall(container.SetUnit, container, self.unit)
+    if not unitOk then
+        self.containerFailReason = "SetUnit failed: " .. tostring(unitErr)
         container:Hide()
         return false
     end
 
     self.containerButtons = {}
 
-    local added = pcall(container.AddAuraGroup, container, "puf", self.filter, {
+    local added, addErr = pcall(container.AddAuraGroup, container, "puf", self.filter, {
         maxFrameCount = self.count,
+        candidateFilters = self.candidateFilters,
         initializeFrame = function(button)
             DecorateButton(button, self.size, self.cfg)
             self.containerButtons[#self.containerButtons + 1] = button
@@ -215,6 +264,7 @@ function AuraRow:BuildContainer()
     })
 
     if not added then
+        self.containerFailReason = "AddAuraGroup failed: " .. tostring(addErr)
         container:Hide()
         container:SetParent(nil)
         return false
@@ -229,6 +279,7 @@ function AuraRow:BuildContainer()
 
     self.container = container
     self.containerSignature = signature
+    self.containerFailReason = nil
     return true
 end
 
@@ -287,6 +338,11 @@ local function ScanAuras(unit, filter, maxCount)
 end
 
 function AuraRow:UpdateFallback()
+    -- A spell-id whitelist is a client-side concept; the scan path would have to
+    -- read each aura's spellId to honour it, which is exactly what it is not
+    -- allowed to do once auras are restricted. Left empty rather than wrong.
+    if self.candidateFilters then return end
+
     local auras = ScanAuras(self.unit, self.filter, self.count)
     local shown = 0
 
