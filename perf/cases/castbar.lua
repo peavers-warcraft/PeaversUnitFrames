@@ -14,6 +14,9 @@ local Stubs = dofile(HARNESS_LIB .. "/wow-stubs.lua").Install()
 -- Addon-side scaffolding
 --------------------------------------------------------------------------------
 
+-- Only the surface CastBar.lua touches at load time. A perf case measures one file,
+-- so stubbing the whole framework here would be scaffolding nothing reads.
+---@diagnostic disable-next-line: missing-fields
 _G.PeaversCommons = {
     Utils = {
         GetDefaultFont = function() return "Fonts\\FRIZQT__.TTF" end,
