@@ -6,6 +6,10 @@ iconType: PartyRuneIcon
 # CurseForge project ID for download statistics
 curseForgeProjectId: 1654227
 
+# Member of the Ultra Performance programme: measured against a declared budget
+# on every push, with the numbers published in the README.
+ultraPerformance: true
+
 # Tags for filtering and categorization
 tags:
   - interface

@@ -1,0 +1,32 @@
+name: Ultra Performance
+
+# Measures this addon against perf/budget.json on every push and PR, and
+# publishes what it measured into the README. The harness and the enforcement
+# live in peavers-warcraft-workflows so every addon in the programme is measured
+# the same way.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+# A reusable workflow cannot be granted more than its caller has. The harness
+# needs contents:write to publish the measured table back into the README, and
+# id-token:write to mint the App token via Vault OIDC - so the caller has to say
+# so explicitly. Leaving this out fails the run at startup, before any job is
+# created, with no log to read. Same block as release.yml carries.
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  perf:
+    uses: peavers-code/peavers-warcraft-workflows/.github/workflows/perf.yml@master
+    with:
+      addon_name: PeaversUnitFrames
+      use_self_hosted: true
+    secrets: inherit
