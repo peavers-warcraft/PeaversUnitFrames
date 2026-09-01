@@ -8,12 +8,16 @@
 -- because that is what scales with how many frames the user has enabled.
 --------------------------------------------------------------------------------
 
+local HARNESS_LIB = _G.HARNESS_LIB
+local ADDON_DIR = _G.ADDON_DIR
+
 local Stubs = dofile(HARNESS_LIB .. "/wow-stubs.lua").Install()
 
 --------------------------------------------------------------------------------
 -- Addon-side scaffolding
 --------------------------------------------------------------------------------
 
+---@diagnostic disable-next-line: missing-fields
 _G.PeaversCommons = {
     Utils = {
         GetDefaultFont = function() return "Fonts\\FRIZQT__.TTF" end,
