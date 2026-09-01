@@ -22,28 +22,34 @@ goes outside `perf/budget.json`, the build fails.
 
 | Check | Measured | Budget | |
 |---|---:|---:|:--:|
-| Packaged size | 102 KB | 150 KB | pass |
+| Packaged size | 103.3 KB | 150 KB | pass |
 | Bundled libraries | 0 | 0 | pass |
-| Widget calls per frame | 2 | 2.1 | pass |
+| Widget calls per frame | 1.17 | 1.25 | pass |
 | Widget calls per second while idle | 0 | 0 | pass |
 
 Scenarios driven against the real addon source, outside the game:
 
 | Scenario | Calls/frame | Notes |
 |---|---:|---|
-| cast bar, 2.5s at 144fps | 2.00 | 358 frames driven, one bar |
-| cast bar, 2.5s at 60fps | 2.00 | 148 frames driven, one bar |
-| channel, 3s at 144fps | 2.00 | 430 frames driven, one bar |
+| cast bar, 2.5s at 144fps | 1.07 | 358 frames driven, one bar |
+| cast bar, 2.5s at 60fps | 1.17 | 148 frames driven, one bar |
+| channel, 3s at 144fps | 1.07 | 430 frames driven, one bar |
 | idle, nothing casting | 0.00 | frame hidden, never ticked |
 
-<sub>2,933 lines of Lua · 102 KB packaged · no bundled libraries</sub>
+<sub>2,952 lines of Lua · 103.3 KB packaged · no bundled libraries</sub>
 
 <!-- perf:end -->
 
 The per-frame figure is **per cast bar**, which is the number that scales with
-how many frames you have enabled. A bar costs a `SetValue` and a `SetText` every
-frame while a cast is running, and nothing whatsoever the rest of the time —
-the bars are genuinely hidden, and WoW does not tick a hidden frame.
+how many frames you have enabled. A bar costs one `SetValue` per frame while a
+cast is running, plus a countdown that only rebuilds its string when the decimal
+it shows actually changes — ten times a second rather than once per frame. That
+is why the figure sits just above 1.0 rather than at 2.0, and why it is higher
+at 60fps than at 144.
+
+The rest of the time a bar costs nothing whatsoever: the frames are genuinely
+hidden, and WoW does not tick a hidden frame. That is measured above rather than
+asserted.
 
 ## Features
 

@@ -232,8 +232,10 @@ function CastBar:Refresh()
         self.bar:SetMinMaxValues(0, 1)
         self.startTime = cast.startTime / 1000
         self.endTime = cast.endTime / 1000
+        self.lastTenths = nil
     elseif self:StartSecretTimer(cast) then
         self.mode = "timer"
+        self.lastTenths = nil
         self.timeText:SetText("")
     else
         -- Nothing readable and no timer support: show that something is being
@@ -242,6 +244,7 @@ function CastBar:Refresh()
         self.bar:SetReverseFill(false)
         self.bar:SetMinMaxValues(0, 1)
         self.bar:SetValue(1)
+        self.lastTenths = nil
         self.timeText:SetText("")
     end
 
@@ -257,6 +260,10 @@ function CastBar:Stop(failed)
     if failed then
         SetBarColor(self, Style.Colors.castFailed)
         self.bar:SetValue(select(2, self.bar:GetMinMaxValues()))
+        -- Blanking the label behind the cache's back would let the next cast
+        -- that happens to open on the same tenth skip its first SetText and
+        -- leave the bar showing nothing.
+        self.lastTenths = nil
         self.timeText:SetText("")
     end
 
@@ -267,6 +274,7 @@ function CastBar:Hide()
     self.fading = nil
     self.cast = nil
     self.mode = nil
+    self.lastTenths = nil
     self.frame:Hide()
 end
 
@@ -305,8 +313,19 @@ function CastBar:OnUpdate(elapsed)
 
     self.bar:SetValue(elapsedTime / total)
 
-    local remaining = self.endTime - now
-    self.timeText:SetText(string.format("%.1f", remaining))
+    -- The label only ever renders one decimal place, so the string is rebuilt
+    -- when that decimal moves rather than once per frame: ten times a second
+    -- instead of 144. Every SetText makes the FontString re-measure its string
+    -- width, and at high frame rates better than nine in ten of those
+    -- measurements were producing a character-for-character identical string.
+    --
+    -- Truncated rather than rounded, so the countdown can never claim more time
+    -- remains than actually does.
+    local tenths = math.floor((self.endTime - now) * 10)
+    if tenths ~= self.lastTenths then
+        self.lastTenths = tenths
+        self.timeText:SetText(string.format("%.1f", tenths / 10))
+    end
 end
 
 -- Every spellcast event for the unit funnels through here; re-reading the unit
