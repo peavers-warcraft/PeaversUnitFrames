@@ -1,8 +1,49 @@
 # PeaversUnitFrames
 
+[![Ultra Performance](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/peavers-warcraft/PeaversUnitFrames/master/.github/badges/perf.json)](https://github.com/peavers-warcraft/PeaversUnitFrames/actions/workflows/perf.yml)
 [![AddonSentry](https://addonsentry.io/api/public/repos/peavers-warcraft/PeaversUnitFrames/badge.svg)](https://addonsentry.io/dashboard/peavers-warcraft/PeaversUnitFrames)
 
 A World of Warcraft addon providing clean player, target, target of target and focus frames with cast bars, buffs and debuffs.
+
+Part of the **Peavers Ultra Performance** family: addons that hold themselves to a published budget, measured on every push.
+
+## Measured performance
+
+Health, power and auras are event driven, so the cast bars are the only thing
+here that runs every frame — and they are what the table below measures. It is
+regenerated on every push by the
+[Ultra Performance harness](https://github.com/peavers-code/peavers-warcraft-workflows/tree/master/perf-harness),
+which loads this addon's real source into a Lua VM and drives it. If any number
+goes outside `perf/budget.json`, the build fails.
+
+<!-- perf:begin -->
+
+> Measured on every push by the Ultra Performance harness. The build fails if any number here exceeds the budget in `perf/budget.json`.
+
+| Check | Measured | Budget | |
+|---|---:|---:|:--:|
+| Packaged size | 102 KB | 150 KB | pass |
+| Bundled libraries | 0 | 0 | pass |
+| Widget calls per frame | 2 | 2.1 | pass |
+| Widget calls per second while idle | 0 | 0 | pass |
+
+Scenarios driven against the real addon source, outside the game:
+
+| Scenario | Calls/frame | Notes |
+|---|---:|---|
+| cast bar, 2.5s at 144fps | 2.00 | 358 frames driven, one bar |
+| cast bar, 2.5s at 60fps | 2.00 | 148 frames driven, one bar |
+| channel, 3s at 144fps | 2.00 | 430 frames driven, one bar |
+| idle, nothing casting | 0.00 | frame hidden, never ticked |
+
+<sub>2,933 lines of Lua · 102 KB packaged · no bundled libraries</sub>
+
+<!-- perf:end -->
+
+The per-frame figure is **per cast bar**, which is the number that scales with
+how many frames you have enabled. A bar costs a `SetValue` and a `SetText` every
+frame while a cast is running, and nothing whatsoever the rest of the time —
+the bars are genuinely hidden, and WoW does not tick a hidden frame.
 
 ## Features
 
