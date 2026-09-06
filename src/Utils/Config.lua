@@ -38,7 +38,11 @@ local function UnitDefaults(overrides)
         tooltip = "always",
 
         -- Bars
-        barTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+        -- nil means "whatever the collection uses", resolved at draw time by
+        -- Style.GetTexture the same way fontFace is. Spelling out Blizzard's
+        -- texture here would pin every new profile to it and quietly opt the
+        -- unit frames out of the shared house style.
+        barTexture = nil,
         -- "class" colours players by class and NPCs by reaction; "custom" paints
         -- every health bar with healthColor instead.
         healthColorMode = "class",

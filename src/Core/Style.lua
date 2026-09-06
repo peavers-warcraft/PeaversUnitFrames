@@ -296,7 +296,16 @@ function Style.ApplyFont(fontString, cfg, sizeDelta)
 end
 
 function Style.GetTexture(cfg)
-    return (cfg and cfg.barTexture) or "Interface\\TargetingFrame\\UI-StatusBar"
+    if cfg and cfg.barTexture then return cfg.barTexture end
+
+    -- Unset means "whatever the collection uses", resolved here rather than
+    -- baked into the saved profile - the same rule GetDefaultFont follows, so a
+    -- change of house texture reaches every frame that never chose one.
+    local ConfigManager = _G.PeaversCommons and _G.PeaversCommons.ConfigManager
+    if ConfigManager and ConfigManager.GetDefaultBarTexture then
+        return ConfigManager.GetDefaultBarTexture()
+    end
+    return "Interface\\TargetingFrame\\UI-StatusBar"
 end
 
 --------------------------------------------------------------------------------
