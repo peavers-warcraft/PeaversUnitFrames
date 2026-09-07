@@ -242,7 +242,7 @@ local function BuildSettings(unitKey)
         }, "class"),
         {
             kind = ST.ColorPicker,
-            name = "Single Colour",
+            name = "Custom Colour",
             default = CreateColor(
                 (defaults.healthColor or {}).r or 0.25,
                 (defaults.healthColor or {}).g or 0.62,

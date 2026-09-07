@@ -52,6 +52,20 @@ local GAP = 5
 local ROW_WIDTH = LABEL_WIDTH + GAP + CONTROL_WIDTH
 local ROW_HEIGHT = 32
 
+-- Sliders need a narrower control than everything else, because their value box
+-- is not inside the control.
+--
+--   MinimalSliderWithSteppersTemplate
+--     Slider     TOPLEFT x=19, BOTTOMRIGHT x=-19   (inset for the arrows)
+--     RightText  LEFT of Slider RIGHT, x=25
+--
+-- The inner slider is already inset 19, so the value text starts six pixels
+-- past the widget's own right edge and then runs on for its own width. At the
+-- library's default of 200 in a 355 row that put the numbers outside the dialog
+-- entirely. The slider is narrowed to leave that overhang a column to sit in.
+local VALUE_GUTTER = 52
+local SLIDER_WIDTH = CONTROL_WIDTH - VALUE_GUTTER
+
 -- A little more air between rows than the library's default of 2. At thirty-odd
 -- settings the difference between 2 and 4 is the difference between a list and a
 -- wall.
@@ -98,7 +112,7 @@ function Layouts.slider(frame)
     -- width, so it is set rather than driven by fixedWidth.
     frame:SetWidth(ROW_WIDTH)
     if frame.Slider then
-        frame.Slider:SetWidth(CONTROL_WIDTH)
+        frame.Slider:SetWidth(SLIDER_WIDTH)
         LayoutControl(frame.Slider, frame.Label)
     end
 end
@@ -118,19 +132,55 @@ function Layouts.colorpicker(frame)
     frame.fixedWidth = ROW_WIDTH
 end
 
--- Section headers. These stay centred - they are the one thing in the dialog
--- that should read as a break in the list rather than a row of it - but they are
--- widened to the full row so the rule spans the dialog instead of stopping short
--- of both edges.
+-- Section headers.
+--
+-- The library centres these and prints them in the same font as a setting
+-- label, which makes them read as another row rather than as a break between
+-- groups - and centred, they are the only thing in the dialog not aligned to
+-- the left edge. They now sit in the label column like everything else, in the
+-- gold heading font, on a faint bar that gives the eye something to catch.
+--
+-- The library's own rule texture is left alone but made invisible rather than
+-- hidden, because the expander re-shows it on every toggle and would undo a
+-- Hide. Alpha it cannot see.
 function Layouts.expander(frame)
     frame:SetWidth(ROW_WIDTH)
+
     if frame.Divider then
-        frame.Divider:SetSize(ROW_WIDTH, 16)
+        frame.Divider:SetAlpha(0)
+    end
+
+    if not frame.peaversHeaderBar then
+        local bar = frame:CreateTexture(nil, "BACKGROUND")
+        bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -4)
+        bar:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 2)
+        bar:SetColorTexture(1, 1, 1, 0.07)
+        frame.peaversHeaderBar = bar
+    end
+
+    local label = frame.Label
+    if label then
+        label:ClearAllPoints()
+        label:SetPoint("LEFT", frame, "LEFT", 8, -1)
+        label:SetWidth(ROW_WIDTH - 16)
+        label:SetJustifyH("LEFT")
+        label:SetJustifyV("MIDDLE")
+        label:SetFontObject("GameFontNormalMedium")
     end
 end
 
 function Layouts.divider(frame)
     frame:SetWidth(ROW_WIDTH)
+end
+
+-- The dialog's buttons come from two different Blizzard templates - the settings
+-- "Reset to default" from one, the extra buttons from another - and they are
+-- built at different widths, so the stack at the bottom of the dialog ended up
+-- with one narrow left-aligned button above two full-width ones. Same width for
+-- all of them.
+function Layouts.button(frame)
+    frame:SetWidth(ROW_WIDTH)
+    frame.align = "center"
 end
 
 --------------------------------------------------------------------------------
@@ -167,6 +217,11 @@ local function StyleDialog(internal)
         if settings.Divider then
             settings.Divider:SetSize(ROW_WIDTH, 16)
         end
+        -- Lives in the settings list rather than the button block below it, so
+        -- it is the one button the button pool never sees.
+        if settings.ResetButton then
+            Layouts.button(settings.ResetButton)
+        end
     end
 
     if dialog.Buttons then
@@ -191,6 +246,8 @@ function EditModeStyle:Apply()
         [ST.ColorPicker] = Layouts.colorpicker,
         [ST.Expander] = Layouts.expander,
         [ST.Divider] = Layouts.divider,
+        -- Not a SettingType; the library keys the button pool by this string.
+        button = Layouts.button,
     }
 
     for kind, layout in pairs(byKind) do
