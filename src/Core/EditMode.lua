@@ -378,6 +378,12 @@ function EditMode:Register()
     LibEditMode:RegisterCallback("exit", function() EditMode:OnExit() end)
     LibEditMode:RegisterCallback("layout", function() EditMode:OnLayout() end)
 
+    -- After registration, because the dialog it squares up does not exist until
+    -- the first AddFrame creates it.
+    if PUF.EditModeStyle then
+        PUF.EditModeStyle:Apply()
+    end
+
     self.registered = true
     return true
 end

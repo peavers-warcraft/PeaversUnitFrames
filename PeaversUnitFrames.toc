@@ -30,6 +30,7 @@ src\UI\UnitFrame.lua
 
 src\Core\Core.lua
 src\Core\EditMode.lua
+src\Core\EditModeStyle.lua
 
 src\Utils\ConfigUI.lua
 src\Utils\Patrons.lua
