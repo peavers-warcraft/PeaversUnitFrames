@@ -105,6 +105,17 @@ local PUF_DEFAULTS = {
     -- catches target-of-target, which has no reliable events of its own.
     refreshRate = 0.1,
 
+    -- Which sections of the Edit Mode dialog are open. Shared by all four
+    -- frames rather than stored per unit: the dialog is the same shape whichever
+    -- frame is selected, and having it reshuffle as you click between them
+    -- would be worse than remembering one set of choices.
+    editModeSections = {
+        bars = false,
+        text = false,
+        cast = false,
+        auras = false,
+    },
+
     units = {
         player = UnitDefaults({ x = -270, y = -200 }),
         target = UnitDefaults({ x = 270, y = -200, showMount = true }),

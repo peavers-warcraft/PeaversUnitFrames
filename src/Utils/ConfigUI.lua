@@ -200,7 +200,8 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
     Section("Position")
 
     local posHint = W:CreateLabel(parentFrame,
-        "Pixels from the centre of the screen. Positive X is right, positive Y is up.", {
+        "Pixels from the centre of the screen. Positive X is right, positive Y is up. "
+        .. "These frames can also be dragged in Blizzard's Edit Mode.", {
             font = "GameFontNormalSmall",
             color = W.Colors.textMuted,
         })

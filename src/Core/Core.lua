@@ -253,6 +253,12 @@ end
 
 function Core:SetUnlocked(unlocked)
     self.unlocked = unlocked
+
+    -- Edit Mode is showing the movers itself, and a settings change made from
+    -- its dialog runs a refresh that ends up here. Hiding them mid-edit would
+    -- pull the frame out from under the dialog that is editing it.
+    if PUF.EditMode and PUF.EditMode:IsEditing() then return end
+
     for _, key in ipairs(PUF.Config.UNIT_ORDER) do
         local frame = self.frames[key]
         if frame then
