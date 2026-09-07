@@ -98,6 +98,20 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
     local UnitSettings = PUF.UnitSettings
     local y = -10
 
+    -- No schema means PeaversCommons is older than this addon; UnitSettings has
+    -- already said so in chat. Draw the reason rather than erroring on a nil.
+    if not UnitSettings then
+        local notice = W:CreateLabel(parentFrame,
+            "This page needs a newer PeaversCommons. Update it and reload.", {
+                color = W.Colors.textMuted,
+            })
+        notice:SetPoint("TOPLEFT", indent, y)
+        notice:SetWidth(width)
+        notice:SetJustifyH("LEFT")
+        parentFrame:SetHeight(60)
+        return
+    end
+
     local function Section(title)
         local _, newY = W:CreateSectionHeader(parentFrame, title, indent, y - SECTION_END)
         y = newY - SECTION_GAP

@@ -49,6 +49,8 @@ function EditMode:Register()
     if not PeaversCommons.EditMode or not PeaversCommons.EditMode.available then
         return false
     end
+    -- Absent when PeaversCommons is too old to have built it.
+    if not PUF.UnitSettings then return false end
     if self.registered then return true end
 
     local Config = PUF.Config

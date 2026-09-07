@@ -225,6 +225,17 @@ local ENTRIES = {
 -- scope functions turn back into that frame's slice of the profile.
 --------------------------------------------------------------------------------
 
+-- The settings are described here and rendered by PeaversCommons, so a Commons
+-- older than the one this shipped against has nothing to render them with. Say
+-- so once rather than throwing: this runs at file scope, where an error takes
+-- the whole addon down, and addons reach people in whatever order their updater
+-- happens to apply them.
+if not PeaversCommons.SettingsSchema then
+    print("|cffff0000PeaversUnitFrames|r needs a newer PeaversCommons. "
+        .. "Update PeaversCommons and reload.")
+    return
+end
+
 local UnitSettings = PeaversCommons.SettingsSchema:New({
     config = PUF.Config,
     sections = SECTIONS,
