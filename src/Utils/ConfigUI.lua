@@ -116,12 +116,12 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
     -- Mode dialog reads from as well. This function only picks a widget.
     ----------------------------------------------------------------------------
     local function Draw(entry)
-        if UnitSettings.IsHidden(entry, unitKey) then return end
+        if UnitSettings:IsHidden(entry, unitKey) then return end
 
-        local value = UnitSettings.Read(entry, unitKey)
+        local value = UnitSettings:Read(entry, unitKey)
 
         local function Commit(newValue)
-            UnitSettings.Write(entry, unitKey, newValue)
+            UnitSettings:Write(entry, unitKey, newValue)
 
             -- A setting that reveals or hides another one has to redraw the
             -- page, since these widgets are placed at fixed offsets rather than
@@ -146,14 +146,14 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
                 min = entry.min, max = entry.max, step = entry.step,
                 value = value or entry.min,
                 width = width,
-                format = UnitSettings.Formatter(entry),
+                format = UnitSettings:Formatter(entry),
                 onChange = Commit,
             })
             Place(widget, SLIDER)
 
         elseif entry.kind == "dropdown" then
             local widget = W:CreateDropdown(parentFrame, entry.label, {
-                options = UnitSettings.Values(entry),
+                options = UnitSettings:Values(entry),
                 selected = value,
                 width = width,
                 onChange = Commit,
@@ -197,7 +197,7 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
     -- Every section the schema declares for this surface, in its order. Position
     -- is not in the schema - it is dragged, or typed into the pair of boxes
     -- below - so it is slotted in by hand after the first section.
-    for index, section in ipairs(UnitSettings.SectionsForSurface("config")) do
+    for index, section in ipairs(UnitSettings:SectionsForSurface("config")) do
         Section(section.label)
         for _, entry in ipairs(section.entries) do
             Draw(entry)

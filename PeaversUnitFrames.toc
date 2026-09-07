@@ -15,8 +15,6 @@
 ## Dependencies: PeaversCommons, PeaversConfig
 ## SavedVariables: PeaversUnitFramesDB
 
-Libs\LibEditMode\embed.xml
-
 Changelog.lua
 
 src\Utils\Config.lua
@@ -31,7 +29,6 @@ src\UI\UnitFrame.lua
 
 src\Core\Core.lua
 src\Core\EditMode.lua
-src\Core\EditModeStyle.lua
 
 src\Utils\ConfigUI.lua
 src\Utils\Patrons.lua

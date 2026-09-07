@@ -3,44 +3,28 @@ local addonName, PUF = ...
 --------------------------------------------------------------------------------
 -- UnitSettings
 --
--- One description of what a unit frame can be told to do, rendered by both the
--- settings page and the Edit Mode dialog.
+-- What a unit frame can be told to do, described once, rendered by the settings
+-- page and by the Edit Mode dialog.
 --
--- Before this the two surfaces each carried their own hand-written copy of the
--- same thirty-one settings, in two different widget vocabularies, with the
--- ranges typed out twice. Adding a setting meant adding it twice; renaming a
--- config key broke one surface quietly. That does not survive being repeated
--- across ten addons, so the list lives here and the surfaces render it.
+-- The machinery for that lives in PeaversCommons.SettingsSchema - this file is
+-- the list. Almost none of these keys are standard Peavers settings, so unlike
+-- most addons they are spelled out in full rather than resolved from
+-- ConfigSchema.Common; the two that are standard, fontFace and barTexture, name
+-- only their key and take their options from the collection.
 --
--- Each entry says what the setting *is*, never how it is drawn:
+-- Settings live per unit rather than on the config directly, which is what the
+-- scope functions below are for: the same schema is rendered four times, once
+-- per frame, with the unit key as its context.
 --
---   key       the field in the unit's config table
---   label     what to call it
---   kind      checkbox | slider | dropdown | color
---   section   which group it belongs to, shared by both surfaces
---   surface   where it appears - see below
---   unit      px | pt | percent, for formatting the value
---   read      optional: stored value  -> what the widget shows
---   write     optional: what the widget gives -> stored value
---   hidden    optional: hide this row given the unit's current config
---
--- `surface` is the interesting one. "both" is for anything you decide by
--- looking at the frame while you drag it - sizes, spacing, how many aura icons.
--- "config" is for anything you decide off a list and then forget: aura
--- filtering, text formats, fonts. Those are worse in an Edit Mode dialog, which
--- has no room to explain what "Dispellable by me only" means, and better on a
--- settings page that can. Keeping them out is most of the difference between a
--- dialog of twenty-one rows and one of thirty-one.
+-- `surface` decides where a setting appears. "both" is anything you judge by
+-- looking at the frame while you drag it. "config" is anything picked off a
+-- list once and forgotten - aura filters, text formats, fonts - which the
+-- settings page can explain and a dialog with no scroll bar cannot.
 --------------------------------------------------------------------------------
 
-local UnitSettings = {}
-PUF.UnitSettings = UnitSettings
+local PeaversCommons = _G.PeaversCommons
 
---------------------------------------------------------------------------------
--- Sections
---------------------------------------------------------------------------------
-
-UnitSettings.SECTIONS = {
+local SECTIONS = {
     { key = "frame", label = "Frame" },
     { key = "bars", label = "Bars" },
     { key = "text", label = "Text" },
@@ -48,62 +32,15 @@ UnitSettings.SECTIONS = {
     { key = "auras", label = "Auras" },
 }
 
---------------------------------------------------------------------------------
--- Value formatting
---
--- A bare number in a value column is ambiguous: a screenshot of this dialog had
--- "30" (a percentage) directly above "40" (pixels) with nothing to tell them
--- apart. Both surfaces take a formatter that returns a string, so one function
--- serves each.
---------------------------------------------------------------------------------
-
-local FORMATTERS = {
-    px = function(value) return math.floor(value + 0.5) .. "px" end,
-    pt = function(value) return math.floor(value + 0.5) .. "pt" end,
-    percent = function(value) return math.floor((value * 100) + 0.5) .. "%" end,
-}
-
-function UnitSettings.Formatter(entry)
-    return entry.unit and FORMATTERS[entry.unit] or nil
-end
-
---------------------------------------------------------------------------------
--- Option lists
---
--- Anything sourced from the collection is a function, because ConfigManager's
--- media lists are not populated until LibSharedMedia has been read.
---------------------------------------------------------------------------------
-
-local function Sorted(map)
-    local items = {}
-    for value, label in pairs(map) do
-        items[#items + 1] = { value = value, label = tostring(label) }
-    end
-    table.sort(items, function(a, b) return a.label < b.label end)
-    return items
-end
-
-local function Fonts()
-    return Sorted(_G.PeaversCommons.ConfigManager.GetFonts())
-end
-
-local function BarTextures()
-    return Sorted(_G.PeaversCommons.ConfigManager.GetBarTextures())
-end
-
 local SOURCE_VALUES = {
     { value = "all", label = "Everyone's" },
     { value = "mine", label = "Only mine" },
     { value = "others", label = "Only other people's" },
 }
 
---------------------------------------------------------------------------------
--- The settings
---------------------------------------------------------------------------------
-
 -- Position is deliberately absent. It is dragged in Edit Mode and typed into a
 -- pair of boxes on the settings page, and neither of those is a row in a list.
-UnitSettings.ENTRIES = {
+local ENTRIES = {
     ----------------------------------------------------------------- frame ---
     {
         key = "enabled", label = "Enabled", kind = "checkbox",
@@ -131,11 +68,9 @@ UnitSettings.ENTRIES = {
     },
 
     ------------------------------------------------------------------ bars ---
-    {
-        key = "barTexture", label = "Bar Texture", kind = "dropdown",
-        section = "bars", surface = "config", values = BarTextures, height = 300,
-        fallback = function() return PUF.Style.GetTexture(nil) end,
-    },
+    -- Standard settings: the label, kind and option list all come from
+    -- ConfigSchema.Common.
+    { key = "barTexture", section = "bars", surface = "config", height = 300 },
     {
         key = "healthColorMode", label = "Health Colour", kind = "dropdown",
         section = "bars", surface = "both", fallback = "class",
@@ -193,18 +128,10 @@ UnitSettings.ENTRIES = {
             { value = "both", label = "Value and percent" },
         },
     },
-    {
-        key = "fontFace", label = "Font", kind = "dropdown",
-        section = "text", surface = "config", values = Fonts, height = 300,
-        fallback = function() return PUF.Style.GetDefaultFont() end,
-    },
-    {
-        -- Stored as the outline flag the font API wants, shown as a tick.
-        key = "fontOutline", label = "Font Outline", kind = "checkbox",
-        section = "text", surface = "config",
-        read = function(stored) return stored == "OUTLINE" end,
-        write = function(shown) return shown and "OUTLINE" or "" end,
-    },
+    { key = "fontFace", section = "text", surface = "config", height = 300 },
+    -- Stored as the outline flag the font API wants, shown as a tick. The schema
+    -- knows this one by name and keeps whichever shape it finds.
+    { key = "fontOutline", section = "text", surface = "config" },
     {
         key = "fontShadow", label = "Font Shadow", kind = "checkbox",
         section = "text", surface = "config",
@@ -292,115 +219,31 @@ UnitSettings.ENTRIES = {
 }
 
 --------------------------------------------------------------------------------
--- Reading and writing
+-- The schema
 --
--- Both surfaces go through here, so neither can drift from the other on what a
--- setting means, what it falls back to, or what happens after it changes.
+-- Rendered once per frame, with the unit key as its context - which is what the
+-- scope functions turn back into that frame's slice of the profile.
 --------------------------------------------------------------------------------
 
-local function Resolve(value)
-    if type(value) == "function" then return value() end
-    return value
-end
-
--- The list of options for a dropdown, as { value, label } pairs.
-function UnitSettings.Values(entry)
-    return Resolve(entry.values) or {}
-end
-
--- What the widget should show for this setting on this frame.
-function UnitSettings.Read(entry, unitKey)
-    local Config = PUF.Config
-    local stored = Config:GetUnit(unitKey)[entry.key]
-
-    if stored == nil then
-        stored = Config:GetUnitDefaults(unitKey)[entry.key]
-    end
-    if stored == nil then
-        stored = Resolve(entry.fallback)
-    end
-
-    if entry.read then
-        return entry.read(stored)
-    end
-    return stored
-end
-
--- What a fresh profile would show, for the "reset to default" affordances both
--- surfaces offer.
-function UnitSettings.Default(entry, unitKey)
-    local stored = PUF.Config:GetUnitDefaults(unitKey)[entry.key]
-    if stored == nil then
-        stored = Resolve(entry.fallback)
-    end
-
-    if entry.read then
-        return entry.read(stored)
-    end
-    return stored
-end
-
--- Write a setting and rebuild that one frame. This was duplicated verbatim in
--- both surfaces; it belongs with the thing being written.
-function UnitSettings.Write(entry, unitKey, value)
-    local stored = value
-    if entry.write then
-        stored = entry.write(value)
-    end
-
-    PUF.Config:GetUnit(unitKey)[entry.key] = stored
-    PUF.Config:Save()
-
-    if PUF.Core then
+local UnitSettings = PeaversCommons.SettingsSchema:New({
+    config = PUF.Config,
+    sections = SECTIONS,
+    entries = ENTRIES,
+    scope = function(config, unitKey) return config:GetUnit(unitKey) end,
+    scopeDefaults = function(config, unitKey) return config:GetUnitDefaults(unitKey) end,
+    apply = function(entry, unitKey)
+        if not PUF.Core then return end
         PUF.Core.lastSetting = unitKey .. "." .. entry.key
         PUF.Core.lastSettingTime = GetTime()
         PUF.Core:RefreshUnit(unitKey)
-    end
-end
+    end,
+})
 
-function UnitSettings.IsHidden(entry, unitKey)
-    if not entry.hidden then return false end
-    return entry.hidden(PUF.Config:GetUnit(unitKey)) and true or false
-end
+PUF.UnitSettings = UnitSettings
 
-function UnitSettings.IsDisabled(entry, unitKey)
-    if not entry.disabled then return false end
-    return entry.disabled(PUF.Config:GetUnit(unitKey)) and true or false
-end
-
---------------------------------------------------------------------------------
--- Selection
---------------------------------------------------------------------------------
-
--- Entries a surface should draw, in declaration order.
-function UnitSettings.ForSurface(surface)
-    local out = {}
-    for _, entry in ipairs(UnitSettings.ENTRIES) do
-        if entry.surface == "both" or entry.surface == surface then
-            out[#out + 1] = entry
-        end
-    end
-    return out
-end
-
--- The same, grouped by section and skipping sections a surface has nothing in.
--- Returns a list of { key, label, entries }.
-function UnitSettings.SectionsForSurface(surface)
-    local bySection = {}
-    for _, entry in ipairs(UnitSettings.ForSurface(surface)) do
-        bySection[entry.section] = bySection[entry.section] or {}
-        local list = bySection[entry.section]
-        list[#list + 1] = entry
-    end
-
-    local out = {}
-    for _, section in ipairs(UnitSettings.SECTIONS) do
-        local entries = bySection[section.key]
-        if entries and #entries > 0 then
-            out[#out + 1] = { key = section.key, label = section.label, entries = entries }
-        end
-    end
-    return out
-end
+-- Kept reachable for the tests, which check the declaration against the config
+-- defaults in both directions.
+UnitSettings.SECTIONS = SECTIONS
+UnitSettings.DECLARED = ENTRIES
 
 return UnitSettings
