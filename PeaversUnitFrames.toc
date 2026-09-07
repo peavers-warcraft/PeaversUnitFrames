@@ -18,6 +18,7 @@
 Changelog.lua
 
 src\Utils\Config.lua
+src\Utils\UnitSettings.lua
 
 src\Core\Style.lua
 src\Core\Blizzard.lua
@@ -27,6 +28,7 @@ src\UI\Auras.lua
 src\UI\UnitFrame.lua
 
 src\Core\Core.lua
+src\Core\EditMode.lua
 
 src\Utils\ConfigUI.lua
 src\Utils\Patrons.lua

@@ -25,6 +25,7 @@ AuraRow.__index = AuraRow
 local IsSecret = Style.IsSecret
 local Present = Style.Present
 local IsSecretTable = Style.IsSecretTable
+local Safe = Style.Safe
 
 --------------------------------------------------------------------------------
 -- Shared button styling

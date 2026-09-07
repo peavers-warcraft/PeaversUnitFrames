@@ -16,7 +16,6 @@ end
 
 local W = PeaversCommons.Widgets
 local ConfigUIUtils = PeaversCommons.ConfigUIUtils
-local ConfigManager = PeaversCommons.ConfigManager
 
 --------------------------------------------------------------------------------
 -- Layout metrics for the hand-placed controls
@@ -44,15 +43,6 @@ local function GetPageOpts(parentFrame)
     return indent, width
 end
 
-local function SortedOptions(map)
-    local items = {}
-    for value, label in pairs(map) do
-        items[#items + 1] = { value = value, label = label }
-    end
-    table.sort(items, function(a, b) return tostring(a.label) < tostring(b.label) end)
-    return items
-end
-
 -- Addon-wide setting: write, persist, rebuild everything.
 local function Set(key, value)
     Config[key] = value
@@ -69,19 +59,6 @@ local function Set(key, value)
     end
 
     if PUF.Core then PUF.Core:RefreshAll() end
-end
-
--- Per-unit setting: write into that unit's table and rebuild only that frame.
-local function SetUnit(unitKey, key, value)
-    local unitConfig = Config:GetUnit(unitKey)
-    unitConfig[key] = value
-    Config:Save()
-
-    if PUF.Core then
-        PUF.Core.lastSetting = unitKey .. "." .. key
-        PUF.Core.lastSettingTime = GetTime()
-        PUF.Core:RefreshUnit(unitKey)
-    end
 end
 
 --------------------------------------------------------------------------------
@@ -118,9 +95,22 @@ StaticPopupDialogs["PEAVERSUNITFRAMES_COPY_TO_ALL"] = {
 
 function ConfigUI:BuildUnitPage(parentFrame, unitKey)
     local indent, width = GetPageOpts(parentFrame)
-    local cfg = Config:GetUnit(unitKey)
-    local defaults = Config:GetUnitDefaults(unitKey)
+    local UnitSettings = PUF.UnitSettings
     local y = -10
+
+    -- No schema means PeaversCommons is older than this addon; UnitSettings has
+    -- already said so in chat. Draw the reason rather than erroring on a nil.
+    if not UnitSettings then
+        local notice = W:CreateLabel(parentFrame,
+            "This page needs a newer PeaversCommons. Update it and reload.", {
+                color = W.Colors.textMuted,
+            })
+        notice:SetPoint("TOPLEFT", indent, y)
+        notice:SetWidth(width)
+        notice:SetJustifyH("LEFT")
+        parentFrame:SetHeight(60)
+        return
+    end
 
     local function Section(title)
         local _, newY = W:CreateSectionHeader(parentFrame, title, indent, y - SECTION_END)
@@ -132,35 +122,67 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
         y = y - height
     end
 
-    local function Checkbox(label, key, description)
-        local widget = W:CreateCheckbox(parentFrame, label, {
-            checked = cfg[key] and true or false,
-            width = width,
-            description = description,
-            onChange = function(checked) SetUnit(unitKey, key, checked) end,
-        })
-        Place(widget, description and ROW_DESC or ROW)
-    end
+    ----------------------------------------------------------------------------
+    -- One schema entry, drawn with this page's widgets.
+    --
+    -- Everything about the setting - its range, its options, what it falls back
+    -- to, what happens when it changes - comes from UnitSettings, which the Edit
+    -- Mode dialog reads from as well. This function only picks a widget.
+    ----------------------------------------------------------------------------
+    local function Draw(entry)
+        if UnitSettings:IsHidden(entry, unitKey) then return end
 
-    local function Slider(label, key, minValue, maxValue, step, formatter)
-        local widget = W:CreateSlider(parentFrame, label, {
-            min = minValue, max = maxValue, step = step,
-            value = cfg[key] or defaults[key] or minValue,
-            width = width,
-            format = formatter,
-            onChange = function(value) SetUnit(unitKey, key, value) end,
-        })
-        Place(widget, SLIDER)
-    end
+        local value = UnitSettings:Read(entry, unitKey)
 
-    local function Dropdown(label, key, options, fallback)
-        local widget = W:CreateDropdown(parentFrame, label, {
-            options = options,
-            selected = cfg[key] or fallback,
-            width = width,
-            onChange = function(value) SetUnit(unitKey, key, value) end,
-        })
-        Place(widget, DROPDOWN)
+        local function Commit(newValue)
+            UnitSettings:Write(entry, unitKey, newValue)
+
+            -- A setting that reveals or hides another one has to redraw the
+            -- page, since these widgets are placed at fixed offsets rather than
+            -- laid out. The colour picker under "Health Colour" is the only one
+            -- today, but the schema allows any of them.
+            if entry.revealsOthers then
+                ConfigUI:Rebuild(parentFrame, unitKey)
+            end
+        end
+
+        if entry.kind == "checkbox" then
+            local widget = W:CreateCheckbox(parentFrame, entry.label, {
+                checked = value and true or false,
+                width = width,
+                description = entry.desc,
+                onChange = Commit,
+            })
+            Place(widget, entry.desc and ROW_DESC or ROW)
+
+        elseif entry.kind == "slider" then
+            local widget = W:CreateSlider(parentFrame, entry.label, {
+                min = entry.min, max = entry.max, step = entry.step,
+                value = value or entry.min,
+                width = width,
+                format = UnitSettings:Formatter(entry),
+                onChange = Commit,
+            })
+            Place(widget, SLIDER)
+
+        elseif entry.kind == "dropdown" then
+            local widget = W:CreateDropdown(parentFrame, entry.label, {
+                options = UnitSettings:Values(entry),
+                selected = value,
+                width = width,
+                onChange = Commit,
+            })
+            Place(widget, DROPDOWN)
+
+        elseif entry.kind == "color" then
+            local color = value or {}
+            local widget = W:CreateColorPicker(parentFrame, entry.label, {
+                r = color.r or 1, g = color.g or 1, b = color.b or 1,
+                width = width,
+                onChange = function(r, g, b) Commit({ r = r, g = g, b = b }) end,
+            })
+            Place(widget, ROW)
+        end
     end
 
     ----------------------------------------------------------------------------
@@ -186,147 +208,99 @@ function ConfigUI:BuildUnitPage(parentFrame, unitKey)
     copyHint:SetJustifyH("LEFT")
     y = y - 22
 
-    Section("Frame")
-    Checkbox("Enabled", "enabled")
-    Slider("Width", "width", 80, 400, 2)
-    Slider("Height", "height", 16, 100, 1)
-    Slider("Background Opacity", "bgAlpha", 0, 1, 0.05)
-    Dropdown("Tooltip", "tooltip", {
-        { value = "always", label = "Always show" },
-        { value = "ooc", label = "Hide in combat" },
-        { value = "never", label = "Never show" },
-    }, "always")
-
-    Section("Position")
-
-    local posHint = W:CreateLabel(parentFrame,
-        "Pixels from the centre of the screen. Positive X is right, positive Y is up.", {
-            font = "GameFontNormalSmall",
-            color = W.Colors.textMuted,
-        })
-    posHint:SetPoint("TOPLEFT", indent, y)
-    posHint:SetWidth(width)
-    posHint:SetJustifyH("LEFT")
-    y = y - 20
-
-    -- Typed offsets rather than sliders: the point of these is lining frames up
-    -- exactly, which means entering the same number twice, not dragging to it.
-    local function PositionInput(label, key, xOffset, boxWidth)
-        local input = W:CreateInput(parentFrame, label, {
-            width = boxWidth,
-            text = tostring(math.floor((cfg[key] or 0) + 0.5)),
-        })
-        input:SetPoint("TOPLEFT", indent + xOffset, y)
-
-        local function Commit()
-            local value = tonumber(input:GetText())
-            if value then
-                value = math.floor(value + 0.5)
-                input:SetText(tostring(value))
-                SetUnit(unitKey, key, value)
-            else
-                -- Not a number: restore what is actually stored rather than
-                -- leaving the box showing something that was never applied.
-                local current = Config:GetUnit(unitKey)[key] or 0
-                input:SetText(tostring(math.floor(current + 0.5)))
-            end
+    -- Every section the schema declares for this surface, in its order. Position
+    -- is not in the schema - it is dragged, or typed into the pair of boxes
+    -- below - so it is slotted in by hand after the first section.
+    for index, section in ipairs(UnitSettings:SectionsForSurface("config")) do
+        Section(section.label)
+        for _, entry in ipairs(section.entries) do
+            Draw(entry)
         end
 
-        -- Enter also clears focus, so both hooks fire; Commit is idempotent.
-        input.editBox:HookScript("OnEnterPressed", Commit)
-        input.editBox:HookScript("OnEditFocusLost", Commit)
+        if index == 1 then
+            Section("Position")
 
-        -- Registered so dragging a frame updates the numbers in place; a page
-        -- rebuild simply replaces the entry.
-        ConfigUI.positionInputs[unitKey] = ConfigUI.positionInputs[unitKey] or {}
-        ConfigUI.positionInputs[unitKey][key] = input
+            local posHint = W:CreateLabel(parentFrame,
+                "Pixels from the centre of the screen. Positive X is right, positive Y is up. "
+                .. "These frames can also be dragged in Blizzard's Edit Mode.", {
+                    font = "GameFontNormalSmall",
+                    color = W.Colors.textMuted,
+                })
+            posHint:SetPoint("TOPLEFT", indent, y)
+            posHint:SetWidth(width)
+            posHint:SetJustifyH("LEFT")
+            y = y - 20
 
-        return input
+            -- Typed offsets rather than sliders: the point of these is lining
+            -- frames up exactly, which means entering the same number twice, not
+            -- dragging to it.
+            local function PositionInput(label, key, xOffset, boxWidth)
+                local cfg = Config:GetUnit(unitKey)
+                local input = W:CreateInput(parentFrame, label, {
+                    width = boxWidth,
+                    text = tostring(math.floor((cfg[key] or 0) + 0.5)),
+                })
+                input:SetPoint("TOPLEFT", indent + xOffset, y)
+
+                local function Commit()
+                    local entered = tonumber(input:GetText())
+                    if entered then
+                        entered = math.floor(entered + 0.5)
+                        input:SetText(tostring(entered))
+                        Config:GetUnit(unitKey)[key] = entered
+                        Config:Save()
+                        if PUF.Core then PUF.Core:RefreshUnit(unitKey) end
+                    else
+                        -- Not a number: restore what is actually stored rather
+                        -- than leaving the box showing something that was never
+                        -- applied.
+                        local current = Config:GetUnit(unitKey)[key] or 0
+                        input:SetText(tostring(math.floor(current + 0.5)))
+                    end
+                end
+
+                -- Enter also clears focus, so both hooks fire; Commit is
+                -- idempotent.
+                input.editBox:HookScript("OnEnterPressed", Commit)
+                input.editBox:HookScript("OnEditFocusLost", Commit)
+
+                -- Registered so dragging a frame updates the numbers in place; a
+                -- page rebuild simply replaces the entry.
+                ConfigUI.positionInputs[unitKey] = ConfigUI.positionInputs[unitKey] or {}
+                ConfigUI.positionInputs[unitKey][key] = input
+
+                return input
+            end
+
+            local half = math.floor((width - 10) / 2)
+            PositionInput("X Offset", "x", 0, half)
+            PositionInput("Y Offset", "y", half + 10, half)
+            y = y - 48
+        end
     end
 
-    local half = math.floor((width - 10) / 2)
-    PositionInput("X Offset", "x", 0, half)
-    PositionInput("Y Offset", "y", half + 10, half)
-    y = y - 48
-
-    Section("Bars")
-    Dropdown("Bar Texture", "barTexture", SortedOptions(ConfigManager.GetBarTextures()),
-        "Interface\\TargetingFrame\\UI-StatusBar")
-    Dropdown("Health Bar Colour", "healthColorMode", {
-        { value = "class", label = "Class / reaction" },
-        { value = "custom", label = "Single colour" },
-    }, "class")
-
-    local custom = cfg.healthColor or defaults.healthColor or { r = 0.25, g = 0.62, b = 0.36 }
-    local colorPicker = W:CreateColorPicker(parentFrame, "Single Colour", {
-        r = custom.r, g = custom.g, b = custom.b,
-        width = width,
-        onChange = function(r, g, b) SetUnit(unitKey, "healthColor", { r = r, g = g, b = b }) end,
-    })
-    Place(colorPicker, ROW)
-
-    Slider("Empty Bar Tint", "healthBgAlpha", 0, 0.6, 0.02)
-    Checkbox("Show Power Bar", "showPower")
-    Slider("Power Bar Height", "powerHeight", 2, 14, 1)
-
-    Section("Text")
-    Checkbox("Show Unit Name", "showName")
-    Dropdown("Health Text", "healthText", {
-        { value = "none", label = "Hidden" },
-        { value = "percent", label = "Percent" },
-        { value = "value", label = "Value" },
-        { value = "both", label = "Value and percent" },
-    }, "percent")
-    Dropdown("Font", "fontFace", SortedOptions(ConfigManager.GetFonts()), PUF.Style.GetDefaultFont())
-    Slider("Font Size", "fontSize", 6, 24, 1)
-
-    local outlined = W:CreateCheckbox(parentFrame, "Font Outline", {
-        checked = cfg.fontOutline == "OUTLINE",
-        width = width,
-        onChange = function(checked) SetUnit(unitKey, "fontOutline", checked and "OUTLINE" or "") end,
-    })
-    Place(outlined, ROW)
-
-    Checkbox("Font Shadow", "fontShadow")
-
-    Section("Cast Bar")
-    Checkbox("Show Cast Bar", "showCastBar")
-    Slider("Cast Bar Height", "castBarHeight", 10, 40, 1)
-    Checkbox("Show Spell Icon", "castBarIcon")
-
-    local SOURCE_OPTIONS = {
-        { value = "all", label = "Everyone's" },
-        { value = "mine", label = "Only mine" },
-        { value = "others", label = "Only other people's" },
-    }
-
-    Section("Buffs")
-    Checkbox("Show Buffs", "showBuffs")
-    Slider("Maximum Buffs", "maxBuffs", 1, 16, 1)
-    Dropdown("Cast By", "buffSource", SOURCE_OPTIONS, "all")
-    Dropdown("Limit To", "buffCategory", {
-        { value = "any", label = "Any buff" },
-        { value = "cancelable", label = "Cancelable only" },
-        { value = "defensive", label = "Major defensives only" },
-    }, "any")
-    Checkbox("Always Show Mount", "showMount",
-        "A dedicated slot above the buff row, unaffected by the filters above.")
-
-    Section("Debuffs")
-    Checkbox("Show Debuffs", "showDebuffs")
-    Slider("Maximum Debuffs", "maxDebuffs", 1, 16, 1)
-    Dropdown("Cast By", "debuffSource", SOURCE_OPTIONS, "all")
-    Dropdown("Limit To", "debuffCategory", {
-        { value = "any", label = "Any debuff" },
-        { value = "dispellable", label = "Dispellable by me only" },
-        { value = "crowdcontrol", label = "Crowd control only" },
-    }, "any")
-
-    Section("Aura Icons")
-    Slider("Icon Size", "auraSize", 10, 40, 1)
-    Slider("Icon Spacing", "auraSpacing", 0, 10, 1)
-
     parentFrame:SetHeight(math.abs(y) + 30)
+end
+
+-- Redraw a unit page in place. Used when a setting changes which other settings
+-- apply, since the controls are placed at fixed offsets and cannot reflow.
+function ConfigUI:Rebuild(parentFrame, unitKey)
+    if not parentFrame or parentFrame.pufRebuilding then return end
+    parentFrame.pufRebuilding = true
+
+    for _, child in ipairs({ parentFrame:GetChildren() }) do
+        child:Hide()
+        child:SetParent(nil)
+    end
+    for _, region in ipairs({ parentFrame:GetRegions() }) do
+        region:Hide()
+        region:SetParent(nil)
+    end
+
+    ConfigUI.positionInputs[unitKey] = nil
+    ConfigUI:BuildUnitPage(parentFrame, unitKey)
+
+    parentFrame.pufRebuilding = nil
 end
 
 --------------------------------------------------------------------------------

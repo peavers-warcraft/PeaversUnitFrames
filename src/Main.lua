@@ -51,6 +51,14 @@ PeaversCommons.Events:Init(addonName, function()
 
     PUF.Core:Initialize()
 
+    -- After Core, because it registers the movers the frames build for
+    -- themselves. Silently does nothing if LibEditMode failed to load, which
+    -- leaves the settings page and /puf unlock as the only way to place frames
+    -- rather than leaving the addon broken.
+    if PUF.EditMode then
+        PUF.EditMode:Register()
+    end
+
     if PUF.ConfigUI and PUF.ConfigUI.Initialize then
         PUF.ConfigUI:Initialize()
     end

@@ -170,7 +170,18 @@ end
 function UnitFrame:SyncMover()
     local mover = self.mover
     mover:ClearAllPoints()
-    mover:SetPoint("CENTER", self.button, "CENTER", 0, 0)
+
+    if PUF.EditMode and PUF.EditMode:IsEditing() then
+        -- Free-standing while Edit Mode owns the dragging. Anchored to the
+        -- button instead, the mover's point would read as CENTER 0,0 no matter
+        -- where the frame actually sat, so Edit Mode would think every frame was
+        -- at its default position and never enable its Reset Position button.
+        local cfg = PUF.Config:GetUnit(self.key)
+        mover:SetPoint("CENTER", UIParent, "CENTER", cfg.x or 0, cfg.y or 0)
+    else
+        mover:SetPoint("CENTER", self.button, "CENTER", 0, 0)
+    end
+
     mover:SetSize(self.button:GetWidth(), self.button:GetHeight())
 end
 
@@ -180,6 +191,53 @@ function UnitFrame:SetMoverShown(shown)
         self.mover:Show()
     else
         self.mover:Hide()
+    end
+end
+
+-- Hand the mover over to Edit Mode, or take it back.
+--
+-- Edit Mode drags through its own selection overlay, which is a mouse-enabled
+-- child covering the whole mover. Leaving the mover's own drag handlers attached
+-- means two systems answer the same drag, so they are removed for the duration
+-- and put back on the way out - which keeps /puf unlock working exactly as it
+-- did for anyone who never opens Edit Mode.
+function UnitFrame:SetEditModeShown(shown)
+    local mover = self.mover
+
+    if shown then
+        -- Edit Mode's selection overlay is a child of this frame, and Blizzard
+        -- hard-codes it to MEDIUM strata (EditModeSystemTemplates.xml:
+        -- frameStrata="MEDIUM" frameLevel="1000" toplevel="true"). The mover
+        -- normally sits at DIALOG so it floats over everything while unlocked,
+        -- which puts it *above* its own selection child - a mouse-enabled frame
+        -- covering the overlay that is supposed to be receiving the clicks. It
+        -- drops to MEDIUM and stops taking mouse input for the duration.
+        mover:SetFrameStrata("MEDIUM")
+        mover:EnableMouse(false)
+        mover:RegisterForDrag()
+        mover:SetScript("OnDragStart", nil)
+        mover:SetScript("OnDragStop", nil)
+        -- The overlay draws the system name itself, so the mover's own label
+        -- would only print it twice.
+        mover.label:Hide()
+        self:SyncMover()
+        mover:Show()
+    else
+        mover:SetFrameStrata("DIALOG")
+        mover:EnableMouse(true)
+        mover.label:Show()
+        -- Edit Mode clears movable on every frame it had selected as it closes,
+        -- so this has to be put back or the drag handles stop dragging for
+        -- anyone who opened Edit Mode once and then went back to /puf unlock.
+        mover:SetMovable(true)
+        mover:RegisterForDrag("LeftButton")
+        mover:SetScript("OnDragStart", function(frame) frame:StartMoving() end)
+        mover:SetScript("OnDragStop", function(frame)
+            frame:StopMovingOrSizing()
+            self:CommitMoverPosition()
+        end)
+        self:SyncMover()
+        mover:Hide()
     end
 end
 
