@@ -10,71 +10,42 @@ if not PeaversCommons then
     return
 end
 
-local W = PeaversCommons.Widgets
 local ConfigUIUtils = PeaversCommons.ConfigUIUtils
 
 --------------------------------------------------------------------------------
 -- Where the settings went
 --
--- Every setting these frames have is now in Blizzard's Edit Mode: select a
--- frame and the dialog holds whether it is on and how big, with a button per
--- group for everything else.
+-- Every setting these frames have is in Blizzard's Edit Mode. This page is
+-- deliberately not a second copy of them: two places to change one setting is
+-- worse than one place that takes a moment to find.
 --
--- This page is deliberately not a second copy of them. Two places to change one
--- setting is worse than one place that takes a moment to find, and a mirror of
--- thirty settings would have to be kept honest forever.
+-- The wording is PeaversCommons', not this addon's, so that every addon in the
+-- collection says it the same way.
 --------------------------------------------------------------------------------
 
-local BODY = "Select any of the four frames and its settings open beside the "
-    .. "Edit Mode dialog: size, bars, text, cast bar, auras and typed position "
-    .. "offsets, plus the settings shared by all four frames."
-
-local HOW = "Open Edit Mode from the game menu, or press Escape and choose "
-    .. "Edit Mode. Frames can be dragged, nudged a pixel at a time with the "
-    .. "arrow keys, or ten at a time with Shift held."
-
 function ConfigUI:BuildInfoPage(parentFrame)
-    local indent = 25
-    local width = parentFrame:GetWidth()
-    width = (width and width > 100) and (width - (indent * 2) - 10) or 360
+    ConfigUIUtils.BuildInfoPageWithEditMode(parentFrame, "Unit Frames", {
+        "Clean player, target, target of target and focus frames, with cast "
+            .. "bars and aura rows on each.",
+        { command = "/puf", desc = "open this page" },
+        { command = "/puf reset", desc = "put every frame back where it started" },
 
-    local y = -10
-
-    local function Paragraph(text, font, color)
-        local label = W:CreateLabel(parentFrame, text, {
-            font = font,
-            color = color,
-        })
-        label:SetPoint("TOPLEFT", indent, y)
-        label:SetWidth(width)
-        label:SetJustifyH("LEFT")
-        y = y - (label:GetStringHeight() or 16) - 14
-        return label
-    end
-
-    local _, newY = W:CreateSectionHeader(parentFrame, "Settings are in Edit Mode", indent, y)
-    y = newY - 10
-
-    Paragraph(BODY)
-    Paragraph(HOW, "GameFontNormalSmall", W.Colors.textMuted)
-
-    y = y - 6
-
-    local reset = W:CreateButton(parentFrame, "Reset Every Frame Position", {
-        variant = "secondary",
-        width = 220,
-        onClick = function()
-            PUF.Core:ResetPositions()
-            PeaversCommons.Utils.Print(PUF, "Frame positions reset.")
+        { header = "Nudging a frame" },
+        "A selected frame can be dragged, nudged a pixel at a time with the "
+            .. "arrow keys, or ten at a time with Shift held. The Position "
+            .. "group also takes typed offsets, for lining two frames up "
+            .. "exactly.",
+    }, {
+        title = "the unit frames",
+        select = "any of the four frames",
+        reset = function()
+            Config:Reset()
+            if PUF.Core then PUF.Core:RefreshAll() end
+            if PeaversCommons.EditModePanel then
+                PeaversCommons.EditModePanel:Refresh()
+            end
         end,
     })
-    reset:SetPoint("TOPLEFT", indent, y)
-    y = y - 34
-
-    Paragraph("Everything else - including each frame's own position - is in "
-        .. "the Edit Mode panel.", "GameFontNormalSmall", W.Colors.textMuted)
-
-    parentFrame:SetHeight(math.abs(y) + 30)
 end
 
 --------------------------------------------------------------------------------
