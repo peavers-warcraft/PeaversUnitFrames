@@ -54,16 +54,62 @@ local function Sections()
     return Config.editModeSections
 end
 
+local SECTION_KEYS = { "bars", "text", "cast", "auras" }
+
 local function SectionShown(name)
     return Sections()[name] and true or false
 end
 
--- Only ever writes the open/closed flag. The expander's setter is also called
--- while the dialog is being built, so anything heavier than this would rebuild
--- every unit frame each time the dialog opened.
+-- Ask Edit Mode to rebuild whichever of our dialogs is currently open. The
+-- library checks that the frame it is handed is the selected one, so offering
+-- it all four costs nothing and saves tracking the selection ourselves.
+local function RebuildOpenDialog()
+    for _, unitKey in ipairs(Config.UNIT_ORDER) do
+        local unitFrame = PUF.Core and PUF.Core.frames[unitKey]
+        if unitFrame and unitFrame.mover then
+            LibEditMode:RefreshFrameSettings(unitFrame.mover)
+        end
+    end
+end
+
+-- One section open at a time.
+--
+-- The dialog has no scroll bar, it just grows: all four sections open is
+-- thirty-four rows, which runs off the bottom of a 1080p screen. Closing the
+-- others as one opens holds it to the tallest single section instead of the
+-- sum of them.
+--
+-- The rebuild afterwards is not optional. An expander widget reads its own
+-- open state once, when the dialog is built, and never again - Refresh only
+-- re-evaluates whether it is hidden. So a section closed behind its back keeps
+-- drawing an open arrow over no rows, and takes two clicks to reopen. Only a
+-- rebuild puts every expander back in step with the config.
+--
+-- Two things keep that from running away. It is deferred a frame because this
+-- is called from inside the expander's own click handler, which goes on to use
+-- the widget after we return, and the rebuild releases it back to the pool.
+-- And it only happens when a section was actually closed: building the dialog
+-- calls this setter once per expander, and without that condition the open one
+-- would request a rebuild every time, which would request another.
 local function SetSection(name, value)
-    Sections()[name] = value and true or false
+    local sections = Sections()
+    local closedAnother = false
+
+    if value then
+        for _, key in ipairs(SECTION_KEYS) do
+            if key ~= name and sections[key] then
+                sections[key] = false
+                closedAnother = true
+            end
+        end
+    end
+
+    sections[name] = value and true or false
     Config:Save()
+
+    if closedAnother then
+        C_Timer.After(0, RebuildOpenDialog)
+    end
 end
 
 --------------------------------------------------------------------------------
