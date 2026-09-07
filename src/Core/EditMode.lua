@@ -54,7 +54,24 @@ local function Sections()
     return Config.editModeSections
 end
 
-local SECTION_KEYS = { "bars", "text", "cast", "auras" }
+-- The section drawn plain at the top of the dialog instead of behind an
+-- expander. Everything else in the schema becomes a collapsible group.
+local TOP_SECTION = "frame"
+
+-- Collapsible sections, taken from the schema so a new group only has to be
+-- declared once. Built lazily: the schema is loaded after this file.
+local sectionKeys
+local function SectionKeys()
+    if not sectionKeys then
+        sectionKeys = {}
+        for _, section in ipairs(PUF.UnitSettings.SectionsForSurface("editmode")) do
+            if section.key ~= TOP_SECTION then
+                sectionKeys[#sectionKeys + 1] = section.key
+            end
+        end
+    end
+    return sectionKeys
+end
 
 local function SectionShown(name)
     return Sections()[name] and true or false
@@ -96,7 +113,7 @@ local function SetSection(name, value)
     local closedAnother = false
 
     if value then
-        for _, key in ipairs(SECTION_KEYS) do
+        for _, key in ipairs(SectionKeys()) do
             if key ~= name and sections[key] then
                 sections[key] = false
                 closedAnother = true
@@ -113,73 +130,105 @@ local function SetSection(name, value)
 end
 
 --------------------------------------------------------------------------------
--- Setting helpers
+-- Turning a schema entry into an Edit Mode setting
+--
+-- Nothing here decides what a setting is or what it may be set to - that all
+-- lives in UnitSettings, which the settings page reads from too. This is only
+-- the translation into what LibEditMode wants.
 --------------------------------------------------------------------------------
 
 local ST = LibEditMode and LibEditMode.SettingType
+local UnitSettings = PUF.UnitSettings
 
--- Per-unit write: the same path the settings page uses, so both surfaces behave
--- identically and neither can drift from the other.
-local function SetUnit(unitKey, key, value)
-    local unitConfig = Config:GetUnit(unitKey)
-    unitConfig[key] = value
-    Config:Save()
+-- A row is hidden when its section is collapsed, or when the setting itself
+-- says it has nothing to offer right now - the custom colour with the bar on
+-- class colours, for instance.
+local function HiddenFn(entry, unitKey, section)
+    if not section and not entry.hidden then return nil end
 
-    if PUF.Core then
-        PUF.Core.lastSetting = unitKey .. "." .. key
-        PUF.Core.lastSettingTime = GetTime()
-        PUF.Core:RefreshUnit(unitKey)
+    return function()
+        if section and not SectionShown(section) then return true end
+        return UnitSettings.IsHidden(entry, unitKey)
     end
 end
 
-local function GetUnit(unitKey, key)
-    local value = Config:GetUnit(unitKey)[key]
-    if value == nil then
-        value = Config:GetUnitDefaults(unitKey)[key]
-    end
-    return value
+local function DisabledFn(entry, unitKey)
+    if not entry.disabled then return nil end
+    return function() return UnitSettings.IsDisabled(entry, unitKey) end
 end
 
--- Every setting below is built through these, so a setting is one line and the
--- layoutName argument Edit Mode passes is discarded in exactly one place.
-local function Checkbox(unitKey, label, key, section, desc)
+-- LibEditMode's dropdowns want `text` where the settings page's want `label`.
+local function DropdownValues(entry)
+    return function()
+        local out = {}
+        for _, option in ipairs(UnitSettings.Values(entry)) do
+            out[#out + 1] = { value = option.value, text = option.label }
+        end
+        return out
+    end
+end
+
+local function AsColor(value)
+    value = value or {}
+    return CreateColor(value.r or 1, value.g or 1, value.b or 1)
+end
+
+local Builders = {}
+
+function Builders.checkbox(entry, unitKey)
     return {
         kind = ST.Checkbox,
-        name = label,
-        desc = desc,
-        default = Config:GetUnitDefaults(unitKey)[key] and true or false,
-        get = function() return GetUnit(unitKey, key) and true or false end,
-        set = function(_, value) SetUnit(unitKey, key, value and true or false) end,
-        hidden = section and function() return not SectionShown(section) end or nil,
+        default = UnitSettings.Default(entry, unitKey) and true or false,
+        get = function() return UnitSettings.Read(entry, unitKey) and true or false end,
+        set = function(_, value) UnitSettings.Write(entry, unitKey, value and true or false) end,
     }
 end
 
-local function Slider(unitKey, label, key, section, minValue, maxValue, step, formatter)
+function Builders.slider(entry, unitKey)
     return {
         kind = ST.Slider,
-        name = label,
-        default = Config:GetUnitDefaults(unitKey)[key] or minValue,
-        get = function() return GetUnit(unitKey, key) or minValue end,
-        set = function(_, value) SetUnit(unitKey, key, value) end,
-        minValue = minValue,
-        maxValue = maxValue,
-        valueStep = step,
-        formatter = formatter,
-        hidden = section and function() return not SectionShown(section) end or nil,
+        default = UnitSettings.Default(entry, unitKey) or entry.min,
+        get = function() return UnitSettings.Read(entry, unitKey) or entry.min end,
+        set = function(_, value) UnitSettings.Write(entry, unitKey, value) end,
+        minValue = entry.min,
+        maxValue = entry.max,
+        valueStep = entry.step,
+        formatter = UnitSettings.Formatter(entry),
     }
 end
 
-local function Dropdown(unitKey, label, key, section, values, fallback, height)
+function Builders.dropdown(entry, unitKey)
     return {
         kind = ST.Dropdown,
-        name = label,
-        default = Config:GetUnitDefaults(unitKey)[key] or fallback,
-        get = function() return GetUnit(unitKey, key) or fallback end,
-        set = function(_, value) SetUnit(unitKey, key, value) end,
-        values = values,
-        height = height,
-        hidden = section and function() return not SectionShown(section) end or nil,
+        default = UnitSettings.Default(entry, unitKey),
+        get = function() return UnitSettings.Read(entry, unitKey) end,
+        set = function(_, value) UnitSettings.Write(entry, unitKey, value) end,
+        values = DropdownValues(entry),
+        height = entry.height,
     }
+end
+
+function Builders.color(entry, unitKey)
+    return {
+        kind = ST.ColorPicker,
+        default = AsColor(UnitSettings.Default(entry, unitKey)),
+        get = function() return AsColor(UnitSettings.Read(entry, unitKey)) end,
+        set = function(_, color)
+            UnitSettings.Write(entry, unitKey, { r = color.r, g = color.g, b = color.b })
+        end,
+    }
+end
+
+local function ToSetting(entry, unitKey, section)
+    local builder = Builders[entry.kind]
+    if not builder then return nil end
+
+    local setting = builder(entry, unitKey)
+    setting.name = entry.label
+    setting.desc = entry.desc
+    setting.hidden = HiddenFn(entry, unitKey, section)
+    setting.disabled = DisabledFn(entry, unitKey)
+    return setting
 end
 
 local function Expander(label, section)
@@ -192,127 +241,31 @@ local function Expander(label, section)
     }
 end
 
--- Turns a {value = label} map from ConfigManager into the indexed list the
--- dropdown wants, sorted by label so the font list is not in hash order.
-local function SortedOptions(map)
-    local items = {}
-    for value, label in pairs(map) do
-        items[#items + 1] = { value = value, text = tostring(label) }
-    end
-    table.sort(items, function(a, b) return a.text < b.text end)
-    return items
-end
-
-local function Percent(value)
-    return math.floor((value * 100) + 0.5)
-end
-
 --------------------------------------------------------------------------------
 -- The settings for one frame
+--
+-- The first section is drawn plain at the top of the dialog rather than behind
+-- an expander: enabling a frame and sizing it are what people open this for,
+-- and putting them one click away to save three rows would be a poor trade.
 --------------------------------------------------------------------------------
 
-local SOURCE_VALUES = {
-    { value = "all", text = "Everyone's" },
-    { value = "mine", text = "Only mine" },
-    { value = "others", text = "Only other people's" },
-}
-
 local function BuildSettings(unitKey)
-    local ConfigManager = _G.PeaversCommons.ConfigManager
-    local defaults = Config:GetUnitDefaults(unitKey)
+    local settings = {}
 
-    local settings = {
-        Checkbox(unitKey, "Enabled", "enabled", nil,
-            "Turn this frame off entirely. It keeps its position and settings."),
-        Slider(unitKey, "Width", "width", nil, 80, 400, 2),
-        Slider(unitKey, "Height", "height", nil, 16, 100, 1),
-        Dropdown(unitKey, "Tooltip", "tooltip", nil, {
-            { value = "always", text = "Always show" },
-            { value = "ooc", text = "Hide in combat" },
-            { value = "never", text = "Never show" },
-        }, "always"),
+    for _, section in ipairs(UnitSettings.SectionsForSurface("editmode")) do
+        local grouped = section.key ~= TOP_SECTION
 
-        Expander("Bars", "bars"),
-        Dropdown(unitKey, "Bar Texture", "barTexture", "bars",
-            function() return SortedOptions(ConfigManager.GetBarTextures()) end,
-            PUF.Style.GetTexture(nil), 300),
-        Dropdown(unitKey, "Health Colour", "healthColorMode", "bars", {
-            { value = "class", text = "Class / reaction" },
-            { value = "custom", text = "Single colour" },
-        }, "class"),
-        {
-            kind = ST.ColorPicker,
-            name = "Custom Colour",
-            default = CreateColor(
-                (defaults.healthColor or {}).r or 0.25,
-                (defaults.healthColor or {}).g or 0.62,
-                (defaults.healthColor or {}).b or 0.36),
-            get = function()
-                local c = GetUnit(unitKey, "healthColor") or {}
-                return CreateColor(c.r or 0.25, c.g or 0.62, c.b or 0.36)
-            end,
-            set = function(_, color)
-                SetUnit(unitKey, "healthColor", { r = color.r, g = color.g, b = color.b })
-            end,
-            -- Nothing to pick when the bar is taking its colour from the class.
-            hidden = function()
-                return not SectionShown("bars") or GetUnit(unitKey, "healthColorMode") ~= "custom"
-            end,
-        },
-        Slider(unitKey, "Empty Bar Tint", "healthBgAlpha", "bars", 0, 0.6, 0.02, Percent),
-        Slider(unitKey, "Background Opacity", "bgAlpha", "bars", 0, 1, 0.05, Percent),
-        Checkbox(unitKey, "Show Power Bar", "showPower", "bars"),
-        Slider(unitKey, "Power Bar Height", "powerHeight", "bars", 2, 14, 1),
+        if grouped then
+            settings[#settings + 1] = Expander(section.label, section.key)
+        end
 
-        Expander("Text", "text"),
-        Checkbox(unitKey, "Show Unit Name", "showName", "text"),
-        Dropdown(unitKey, "Health Text", "healthText", "text", {
-            { value = "none", text = "Hidden" },
-            { value = "percent", text = "Percent" },
-            { value = "value", text = "Value" },
-            { value = "both", text = "Value and percent" },
-        }, "percent"),
-        Dropdown(unitKey, "Font", "fontFace", "text",
-            function() return SortedOptions(ConfigManager.GetFonts()) end,
-            PUF.Style.GetDefaultFont(), 300),
-        Slider(unitKey, "Font Size", "fontSize", "text", 6, 24, 1),
-        {
-            kind = ST.Checkbox,
-            name = "Font Outline",
-            default = (defaults.fontOutline or "") == "OUTLINE",
-            get = function() return GetUnit(unitKey, "fontOutline") == "OUTLINE" end,
-            set = function(_, value) SetUnit(unitKey, "fontOutline", value and "OUTLINE" or "") end,
-            hidden = function() return not SectionShown("text") end,
-        },
-        Checkbox(unitKey, "Font Shadow", "fontShadow", "text"),
-
-        Expander("Cast Bar", "cast"),
-        Checkbox(unitKey, "Show Cast Bar", "showCastBar", "cast"),
-        Slider(unitKey, "Cast Bar Height", "castBarHeight", "cast", 10, 40, 1),
-        Checkbox(unitKey, "Show Spell Icon", "castBarIcon", "cast"),
-
-        Expander("Auras", "auras"),
-        Checkbox(unitKey, "Show Buffs", "showBuffs", "auras"),
-        Slider(unitKey, "Maximum Buffs", "maxBuffs", "auras", 1, 16, 1),
-        Dropdown(unitKey, "Buffs Cast By", "buffSource", "auras", SOURCE_VALUES, "all"),
-        Dropdown(unitKey, "Limit Buffs To", "buffCategory", "auras", {
-            { value = "any", text = "Any buff" },
-            { value = "cancelable", text = "Cancelable only" },
-            { value = "defensive", text = "Major defensives only" },
-        }, "any"),
-        Checkbox(unitKey, "Show Mount", "showMount", "auras",
-            "A dedicated slot above the buff row that only ever holds the mount."),
-        Checkbox(unitKey, "Show Debuffs", "showDebuffs", "auras"),
-        Slider(unitKey, "Maximum Debuffs", "maxDebuffs", "auras", 1, 16, 1),
-        Dropdown(unitKey, "Debuffs Cast By", "debuffSource", "auras", SOURCE_VALUES, "all"),
-        Dropdown(unitKey, "Limit Debuffs To", "debuffCategory", "auras", {
-            { value = "any", text = "Any debuff" },
-            { value = "dispellable", text = "Dispellable by me only" },
-            { value = "crowdcontrol", text = "Crowd control only" },
-        }, "any"),
-        Slider(unitKey, "Aura Icon Size", "auraSize", "auras", 10, 40, 1),
-        Slider(unitKey, "Aura Icon Spacing", "auraSpacing", "auras", 0, 10, 1),
-    }
+        for _, entry in ipairs(section.entries) do
+            local setting = ToSetting(entry, unitKey, grouped and section.key or nil)
+            if setting then
+                settings[#settings + 1] = setting
+            end
+        end
+    end
 
     return settings
 end

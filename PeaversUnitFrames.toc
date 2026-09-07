@@ -20,6 +20,7 @@ Libs\LibEditMode\embed.xml
 Changelog.lua
 
 src\Utils\Config.lua
+src\Utils\UnitSettings.lua
 
 src\Core\Style.lua
 src\Core\Blizzard.lua
