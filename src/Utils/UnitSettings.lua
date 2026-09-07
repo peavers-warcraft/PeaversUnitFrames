@@ -26,10 +26,12 @@ local PeaversCommons = _G.PeaversCommons
 
 local SECTIONS = {
     { key = "frame", label = "Frame" },
+    { key = "position", label = "Position" },
     { key = "bars", label = "Bars" },
     { key = "text", label = "Text" },
     { key = "cast", label = "Cast Bar" },
     { key = "auras", label = "Auras" },
+    { key = "addon", label = "All Frames" },
 }
 
 local SOURCE_VALUES = {
@@ -38,28 +40,26 @@ local SOURCE_VALUES = {
     { value = "others", label = "Only other people's" },
 }
 
--- Position is deliberately absent. It is dragged in Edit Mode and typed into a
--- pair of boxes on the settings page, and neither of those is a row in a list.
 local ENTRIES = {
     ----------------------------------------------------------------- frame ---
     {
         key = "enabled", label = "Enabled", kind = "checkbox",
-        section = "frame", surface = "both",
+        section = "frame",
         desc = "Turn this frame off entirely. It keeps its position and settings.",
     },
     {
         key = "width", label = "Width", kind = "slider",
-        section = "frame", surface = "both",
+        section = "frame",
         min = 80, max = 400, step = 2, unit = "px",
     },
     {
         key = "height", label = "Height", kind = "slider",
-        section = "frame", surface = "both",
+        section = "frame",
         min = 16, max = 100, step = 1, unit = "px",
     },
     {
         key = "tooltip", label = "Tooltip", kind = "dropdown",
-        section = "frame", surface = "config", fallback = "always",
+        section = "frame", fallback = "always",
         values = {
             { value = "always", label = "Always show" },
             { value = "ooc", label = "Hide in combat" },
@@ -67,13 +67,27 @@ local ENTRIES = {
         },
     },
 
+ -------------------------------------------------------------- position ---
+    -- Dragging gets a frame roughly where you want it; lining two frames up
+    -- exactly means typing the same number twice, which is what these are for.
+    -- Edit Mode's arrow keys cover the middle ground - one pixel a press, ten
+    -- with shift held.
+    {
+        key = "x", label = "X Offset", kind = "number", section = "position",
+        desc = "Pixels right of the centre of the screen. Negative is left.",
+    },
+    {
+        key = "y", label = "Y Offset", kind = "number", section = "position",
+        desc = "Pixels above the centre of the screen. Negative is below.",
+    },
+
     ------------------------------------------------------------------ bars ---
     -- Standard settings: the label, kind and option list all come from
     -- ConfigSchema.Common.
-    { key = "barTexture", section = "bars", surface = "config", height = 300 },
+    { key = "barTexture", section = "bars", height = 300 },
     {
         key = "healthColorMode", label = "Health Colour", kind = "dropdown",
-        section = "bars", surface = "both", fallback = "class",
+        section = "bars", fallback = "class",
         -- Choosing "custom" reveals the colour swatch below.
         revealsOthers = true,
         values = {
@@ -83,27 +97,27 @@ local ENTRIES = {
     },
     {
         key = "healthColor", label = "Custom Colour", kind = "color",
-        section = "bars", surface = "both",
+        section = "bars",
         -- Nothing to pick while the bar is taking its colour from the class.
         hidden = function(cfg) return cfg.healthColorMode ~= "custom" end,
     },
     {
         key = "healthBgAlpha", label = "Empty Bar Tint", kind = "slider",
-        section = "bars", surface = "both",
+        section = "bars",
         min = 0, max = 0.6, step = 0.02, unit = "percent",
     },
     {
         key = "bgAlpha", label = "Background Opacity", kind = "slider",
-        section = "bars", surface = "both",
+        section = "bars",
         min = 0, max = 1, step = 0.05, unit = "percent",
     },
     {
         key = "showPower", label = "Show Power Bar", kind = "checkbox",
-        section = "bars", surface = "both",
+        section = "bars",
     },
     {
         key = "powerHeight", label = "Power Bar Height", kind = "slider",
-        section = "bars", surface = "both",
+        section = "bars",
         min = 2, max = 14, step = 1, unit = "px",
         disabled = function(cfg) return not cfg.showPower end,
     },
@@ -111,16 +125,16 @@ local ENTRIES = {
     ------------------------------------------------------------------ text ---
     {
         key = "showName", label = "Show Unit Name", kind = "checkbox",
-        section = "text", surface = "both",
+        section = "text",
     },
     {
         key = "fontSize", label = "Font Size", kind = "slider",
-        section = "text", surface = "both",
+        section = "text",
         min = 6, max = 24, step = 1, unit = "pt",
     },
     {
         key = "healthText", label = "Health Text", kind = "dropdown",
-        section = "text", surface = "config", fallback = "percent",
+        section = "text", fallback = "percent",
         values = {
             { value = "none", label = "Hidden" },
             { value = "percent", label = "Percent" },
@@ -128,50 +142,50 @@ local ENTRIES = {
             { value = "both", label = "Value and percent" },
         },
     },
-    { key = "fontFace", section = "text", surface = "config", height = 300 },
+    { key = "fontFace", section = "text", height = 300 },
     -- Stored as the outline flag the font API wants, shown as a tick. The schema
     -- knows this one by name and keeps whichever shape it finds.
-    { key = "fontOutline", section = "text", surface = "config" },
+    { key = "fontOutline", section = "text" },
     {
         key = "fontShadow", label = "Font Shadow", kind = "checkbox",
-        section = "text", surface = "config",
+        section = "text",
     },
 
     ------------------------------------------------------------------ cast ---
     {
         key = "showCastBar", label = "Show Cast Bar", kind = "checkbox",
-        section = "cast", surface = "both",
+        section = "cast",
     },
     {
         key = "castBarHeight", label = "Cast Bar Height", kind = "slider",
-        section = "cast", surface = "both",
+        section = "cast",
         min = 10, max = 40, step = 1, unit = "px",
         disabled = function(cfg) return not cfg.showCastBar end,
     },
     {
         key = "castBarIcon", label = "Show Spell Icon", kind = "checkbox",
-        section = "cast", surface = "both",
+        section = "cast",
         disabled = function(cfg) return not cfg.showCastBar end,
     },
 
     ----------------------------------------------------------------- auras ---
     {
         key = "showBuffs", label = "Show Buffs", kind = "checkbox",
-        section = "auras", surface = "both",
+        section = "auras",
     },
     {
         key = "maxBuffs", label = "Maximum Buffs", kind = "slider",
-        section = "auras", surface = "both",
+        section = "auras",
         min = 1, max = 16, step = 1,
         disabled = function(cfg) return not cfg.showBuffs end,
     },
     {
         key = "buffSource", label = "Buffs Cast By", kind = "dropdown",
-        section = "auras", surface = "config", fallback = "all", values = SOURCE_VALUES,
+        section = "auras", fallback = "all", values = SOURCE_VALUES,
     },
     {
         key = "buffCategory", label = "Limit Buffs To", kind = "dropdown",
-        section = "auras", surface = "config", fallback = "any",
+        section = "auras", fallback = "any",
         values = {
             { value = "any", label = "Any buff" },
             { value = "cancelable", label = "Cancelable only" },
@@ -180,26 +194,26 @@ local ENTRIES = {
     },
     {
         key = "showMount", label = "Show Mount", kind = "checkbox",
-        section = "auras", surface = "both",
+        section = "auras",
         desc = "A dedicated slot above the buff row that only ever holds the mount.",
     },
     {
         key = "showDebuffs", label = "Show Debuffs", kind = "checkbox",
-        section = "auras", surface = "both",
+        section = "auras",
     },
     {
         key = "maxDebuffs", label = "Maximum Debuffs", kind = "slider",
-        section = "auras", surface = "both",
+        section = "auras",
         min = 1, max = 16, step = 1,
         disabled = function(cfg) return not cfg.showDebuffs end,
     },
     {
         key = "debuffSource", label = "Debuffs Cast By", kind = "dropdown",
-        section = "auras", surface = "config", fallback = "all", values = SOURCE_VALUES,
+        section = "auras", fallback = "all", values = SOURCE_VALUES,
     },
     {
         key = "debuffCategory", label = "Limit Debuffs To", kind = "dropdown",
-        section = "auras", surface = "config", fallback = "any",
+        section = "auras", fallback = "any",
         values = {
             { value = "any", label = "Any debuff" },
             { value = "dispellable", label = "Dispellable by me only" },
@@ -208,13 +222,33 @@ local ENTRIES = {
     },
     {
         key = "auraSize", label = "Aura Icon Size", kind = "slider",
-        section = "auras", surface = "both",
+        section = "auras",
         min = 10, max = 40, step = 1, unit = "px",
     },
     {
         key = "auraSpacing", label = "Aura Icon Spacing", kind = "slider",
-        section = "auras", surface = "both",
+        section = "auras",
         min = 0, max = 10, step = 1, unit = "px",
+    },
+
+    ----------------------------------------------------------------- addon ---
+    -- Addon-wide rather than per-frame, so `global` sends these to the config
+    -- itself instead of to one frame's slice of it. They appear on every
+    -- frame's panel because they are the same settings whichever frame happens
+    -- to be selected, and hiding them behind one arbitrary frame would be
+    -- worse than repeating them.
+    {
+        key = "hideBlizzardFrames", label = "Hide Blizzard Frames",
+        kind = "checkbox", section = "addon", global = true,
+        desc = "Turning this back on needs a reload - Blizzard's frames are "
+            .. "protected and cannot be restored mid-session.",
+    },
+    {
+        key = "refreshRate", label = "Refresh Interval", kind = "slider",
+        section = "addon", global = true,
+        min = 0.05, max = 0.5, step = 0.05,
+        desc = "How often target-of-target is re-read. Everything else is "
+            .. "driven by events.",
     },
 }
 

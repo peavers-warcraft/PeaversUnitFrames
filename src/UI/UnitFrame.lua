@@ -161,9 +161,11 @@ function UnitFrame:CommitMoverPosition()
     self:ApplyPosition()
     self:SyncMover()
 
-    -- Keep the settings page honest if it happens to be open behind the mover.
-    if PUF.ConfigUI and PUF.ConfigUI.SyncPositionInputs then
-        PUF.ConfigUI:SyncPositionInputs(self.key)
+    -- The typed offsets are a group in the Edit Mode panel now, so a drag has
+    -- to write back into them if that group happens to be the one open.
+    local Commons = _G.PeaversCommons
+    if Commons and Commons.EditModePanel then
+        Commons.EditModePanel:Refresh()
     end
 end
 
