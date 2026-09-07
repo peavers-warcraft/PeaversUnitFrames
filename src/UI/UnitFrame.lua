@@ -205,12 +205,27 @@ function UnitFrame:SetEditModeShown(shown)
     local mover = self.mover
 
     if shown then
+        -- Edit Mode's selection overlay is a child of this frame, and Blizzard
+        -- hard-codes it to MEDIUM strata (EditModeSystemTemplates.xml:
+        -- frameStrata="MEDIUM" frameLevel="1000" toplevel="true"). The mover
+        -- normally sits at DIALOG so it floats over everything while unlocked,
+        -- which puts it *above* its own selection child - a mouse-enabled frame
+        -- covering the overlay that is supposed to be receiving the clicks. It
+        -- drops to MEDIUM and stops taking mouse input for the duration.
+        mover:SetFrameStrata("MEDIUM")
+        mover:EnableMouse(false)
         mover:RegisterForDrag()
         mover:SetScript("OnDragStart", nil)
         mover:SetScript("OnDragStop", nil)
+        -- The overlay draws the system name itself, so the mover's own label
+        -- would only print it twice.
+        mover.label:Hide()
         self:SyncMover()
         mover:Show()
     else
+        mover:SetFrameStrata("DIALOG")
+        mover:EnableMouse(true)
+        mover.label:Show()
         -- Edit Mode clears movable on every frame it had selected as it closes,
         -- so this has to be put back or the drag handles stop dragging for
         -- anyone who opened Edit Mode once and then went back to /puf unlock.
