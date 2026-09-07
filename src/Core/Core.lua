@@ -289,10 +289,9 @@ function Core:ResetPositions()
     PUF.Config:Save()
     self:RefreshAll()
 
-    if PUF.ConfigUI and PUF.ConfigUI.SyncPositionInputs then
-        for _, key in ipairs(PUF.Config.UNIT_ORDER) do
-            PUF.ConfigUI:SyncPositionInputs(key)
-        end
+    local Commons = _G.PeaversCommons
+    if Commons and Commons.EditModePanel then
+        Commons.EditModePanel:Refresh()
     end
 end
 
