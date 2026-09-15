@@ -9,7 +9,11 @@ end
 local Utils = PeaversCommons.Utils
 
 PUF.name = addonName
-PUF.version = C_AddOns.GetAddOnMetadata(addonName, "Version") or "1.0.0"
+-- C_AddOns is the modern home of the metadata call, and the global is the old
+-- one. Either will do, and neither is worth an error at file scope, where it
+-- would stop the addon loading at all.
+local GetMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
+PUF.version = (GetMetadata and GetMetadata(addonName, "Version")) or "1.0.0"
 
 PeaversCommons.SlashCommands:Register(addonName, "puf", {
     default = function()

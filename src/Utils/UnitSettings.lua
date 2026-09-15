@@ -40,6 +40,29 @@ local SOURCE_VALUES = {
     { value = "others", label = "Only other people's" },
 }
 
+-- The category dropdowns, trimmed to what this client can actually filter on.
+--
+-- Defensives, dispellable-by-me and crowd control are retail filter tokens. On
+-- a client without them the row already falls back to every buff or debuff
+-- (see Style.IsValidFilter), so offering them there would be a choice that
+-- visibly does nothing. Resolved when the dropdown opens rather than at file
+-- scope: AuraRow loads after this file, and by the time anyone opens a dialog
+-- it is long in place. Retail keeps every option, exactly as before.
+local function CategoryValues(baseFilter, options)
+    return function()
+        local AuraRow = PUF.AuraRow
+        if not (AuraRow and AuraRow.IsCategorySupported) then return options end
+
+        local out = {}
+        for _, option in ipairs(options) do
+            if AuraRow.IsCategorySupported(baseFilter, option.value) then
+                out[#out + 1] = option
+            end
+        end
+        return out
+    end
+end
+
 local ENTRIES = {
     ----------------------------------------------------------------- frame ---
     {
@@ -186,11 +209,11 @@ local ENTRIES = {
     {
         key = "buffCategory", label = "Limit Buffs To", kind = "dropdown",
         section = "auras", fallback = "any",
-        values = {
+        values = CategoryValues("HELPFUL", {
             { value = "any", label = "Any buff" },
             { value = "cancelable", label = "Cancelable only" },
             { value = "defensive", label = "Major defensives only" },
-        },
+        }),
     },
     {
         key = "showMount", label = "Show Mount", kind = "checkbox",
@@ -214,11 +237,11 @@ local ENTRIES = {
     {
         key = "debuffCategory", label = "Limit Debuffs To", kind = "dropdown",
         section = "auras", fallback = "any",
-        values = {
+        values = CategoryValues("HARMFUL", {
             { value = "any", label = "Any debuff" },
             { value = "dispellable", label = "Dispellable by me only" },
             { value = "crowdcontrol", label = "Crowd control only" },
-        },
+        }),
     },
     {
         key = "auraSize", label = "Aura Icon Size", kind = "slider",

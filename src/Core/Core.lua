@@ -59,23 +59,35 @@ function Core:Initialize()
     self:StartTicker()
 end
 
+-- Register one event without letting a client that does not know it take the
+-- rest of the list down. The same package loads on retail and on the Classic
+-- clients, and RegisterEvent raises on an unknown name: unguarded, that error
+-- lands inside the login callback and leaves four frames built but deaf. Every
+-- event below has been seen on all of them, so this is a seatbelt, not a switch
+-- - and the refusals are kept so /puf debug can say which ones were dropped.
+local function RegisterIfKnown(frame, event)
+    if pcall(frame.RegisterEvent, frame, event) then return end
+    Core.skippedEvents = Core.skippedEvents or {}
+    Core.skippedEvents[#Core.skippedEvents + 1] = event
+end
+
 function Core:BuildEventFrame()
     local frame = CreateFrame("Frame")
     self.eventFrame = frame
 
     for _, event in ipairs(UNIT_EVENTS) do
-        frame:RegisterEvent(event)
+        RegisterIfKnown(frame, event)
     end
     for _, event in ipairs(CAST_EVENTS) do
-        frame:RegisterEvent(event)
+        RegisterIfKnown(frame, event)
     end
 
-    frame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    frame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    frame:RegisterEvent("UNIT_TARGET")
-    frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    RegisterIfKnown(frame, "PLAYER_TARGET_CHANGED")
+    RegisterIfKnown(frame, "PLAYER_FOCUS_CHANGED")
+    RegisterIfKnown(frame, "PLAYER_ENTERING_WORLD")
+    RegisterIfKnown(frame, "UNIT_TARGET")
+    RegisterIfKnown(frame, "PLAYER_REGEN_ENABLED")
+    RegisterIfKnown(frame, "PLAYER_REGEN_DISABLED")
 
     frame:SetScript("OnEvent", function(_, event, unit, ...)
         self:OnEvent(event, unit, ...)

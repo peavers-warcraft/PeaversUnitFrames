@@ -186,15 +186,55 @@ function Style.SupportsAuraContainer()
     return auraContainerSupported
 end
 
+-- Category tokens that only the retail aura filter understands. They arrived
+-- alongside AuraUtil.IsValidFilterString, which is how their absence is spotted:
+-- the Classic clients (Era, Anniversary and Mists alike) carry C_UnitAuras and
+-- the rest of AuraUtil, but not the validator.
+--
+-- Without this list a client with no validator had every filter waved through,
+-- so "HARMFUL|CROWD_CONTROL" reached a client that has never heard of crowd
+-- control as a filter and the row came back empty - the one outcome the
+-- validator exists to prevent. The tokens every client has always known
+-- (HELPFUL, HARMFUL, PLAYER, CANCELABLE) are deliberately not listed.
+local RETAIL_ONLY_FILTER_TOKENS = {
+    BIG_DEFENSIVE = true,
+    RAID_PLAYER_DISPELLABLE = true,
+    CROWD_CONTROL = true,
+}
+
+local function GetFilterValidator()
+    return AuraUtil and rawget(AuraUtil, "IsValidFilterString")
+end
+
 -- Reject a filter string the client would not accept, rather than letting
 -- AddAuraGroup fail and silently empty the row.
+--
+-- Where the client can answer for itself it always does, so retail behaves
+-- exactly as it did. Only a client with no validator falls back to the list
+-- above, and there an unknown token means "use the base filter" rather than
+-- "trust it and hope".
 function Style.IsValidFilter(filter)
-    local validator = AuraUtil and rawget(AuraUtil, "IsValidFilterString")
+    local validator = GetFilterValidator()
     if validator then
         local ok, valid = pcall(validator, filter)
         if ok then return valid and true or false end
+        return true
+    end
+
+    if type(filter) ~= "string" then return true end
+    for token in filter:gmatch("[^|]+") do
+        if RETAIL_ONLY_FILTER_TOKENS[token] then return false end
     end
     return true
+end
+
+-- Whether a single category token is worth offering in the settings at all.
+-- A client with a validator is taken at its word later, at compose time, so
+-- every option stays listed there exactly as before; a client without one is
+-- not shown options that would only ever quietly fall back to the whole row.
+function Style.SupportsFilterToken(token)
+    if GetFilterValidator() then return true end
+    return not RETAIL_ONLY_FILTER_TOKENS[token]
 end
 
 local INTERPOLATE = Enum and Enum.StatusBarInterpolation
@@ -604,6 +644,10 @@ function Style.Diagnose(unit)
             add("last setting: none seen this session")
         end
         add("last layout error: %s", PUF.Core.lastError or "none")
+        -- Events this client refused to register. Empty everywhere it has been
+        -- tried; anything listed here is an update the frames will never see.
+        add("skipped events: %s", PUF.Core.skippedEvents
+            and table.concat(PUF.Core.skippedEvents, " ") or "none")
     end
 
     if PUF.Blizzard and PUF.Blizzard.status then

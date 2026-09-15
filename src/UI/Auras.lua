@@ -132,6 +132,16 @@ function AuraRow.ComposeFilter(baseFilter, source, category)
     return filter
 end
 
+-- Whether a "Limit ... To" choice means anything on this client. "any" and any
+-- category without a token of its own are always fine; the rest are only as good
+-- as the client's understanding of their token. Read by UnitSettings to keep the
+-- dropdowns to choices that actually narrow the row.
+function AuraRow.IsCategorySupported(baseFilter, category)
+    local token = CATEGORY_TOKENS[baseFilter] and CATEGORY_TOKENS[baseFilter][category]
+    if not token then return true end
+    return Style.SupportsFilterToken(token)
+end
+
 function AuraRow:SetFilter(filter)
     self.filter = filter or self.baseFilter
 end

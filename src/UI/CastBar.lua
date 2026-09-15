@@ -129,11 +129,30 @@ local function SetBarColor(self, color)
     self.bar:SetStatusBarColor(color.r, color.g, color.b)
 end
 
+-- notInterruptible, accepted only when it really is a flag.
+--
+-- The slots are the retail ones on every client this ships to: eighth for a
+-- cast, seventh for a channel. But the Classic clients are not consistent about
+-- filling them. Era and Anniversary hand back nil in the cast's eighth slot
+-- where Mists hands back a boolean, and the old Classic channel signature put
+-- the spell id in the seventh - a number, which ReadBool would happily call
+-- true and paint every channel as unkickable. So anything that is not a boolean
+-- is treated as "the client did not say", which already means the ordinary
+-- colour. IsSecret is still asked first: a secret boolean is exactly the value
+-- that must never reach a test, and "not allowed to know" is nil here as it is
+-- everywhere else.
+local function ReadInterruptFlag(value)
+    if IsSecret(value) then return nil end
+    if type(value) ~= "boolean" then return nil end
+    return value
+end
+
 -- Read whatever the unit is currently doing. Returns nil when it is idle.
 --
 -- Every field here can come back secret inside an encounter. Names and textures
 -- are only truth-tested, never compared, and notInterruptible is normalised
--- through ReadBool because a secret *boolean* cannot legally be tested at all.
+-- through ReadInterruptFlag because a secret *boolean* cannot legally be tested
+-- at all.
 local function ReadCast(unit)
     local name, text, texture, startTime, endTime, _, _, notInterruptible = Safe(UnitCastingInfo, unit)
     if Present(name) then
@@ -142,7 +161,7 @@ local function ReadCast(unit)
             texture = texture,
             startTime = startTime,
             endTime = endTime,
-            notInterruptible = ReadBool(notInterruptible),
+            notInterruptible = ReadInterruptFlag(notInterruptible),
             channeling = false,
         }
     end
@@ -154,7 +173,7 @@ local function ReadCast(unit)
             texture = cTexture,
             startTime = cStart,
             endTime = cEnd,
-            notInterruptible = ReadBool(cNotInterruptible),
+            notInterruptible = ReadInterruptFlag(cNotInterruptible),
             channeling = true,
         }
     end
