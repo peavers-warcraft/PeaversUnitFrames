@@ -335,6 +335,46 @@ function Style.ApplyFont(fontString, cfg, sizeDelta)
     end
 end
 
+--- Size the countdown numbers the client draws on a cooldown.
+---
+--- Blizzard sizes those from the frame's effective scale rather than from the
+--- icon they sit on. A UI pinned to a smaller scale - which is what the pack
+--- does, and what anybody running a pixel-perfect scale does - therefore lands a
+--- number several times too big on a 20 pixel aura, while the stack count beside
+--- it is the size this addon asked for.
+---
+--- The font string belongs to the client and is created the first time numbers
+--- are actually drawn, so this returns false when there is nothing to size yet
+--- and is called again after the first cooldown is set. The signature stops it
+--- doing the work on every aura update while still following a font change.
+---
+--- @return boolean applied
+function Style.ApplyCountdownFont(cooldown, cfg)
+    if not cooldown or type(cooldown.GetRegions) ~= "function" then return false end
+
+    local face, size, outline = Style.GetFont(cfg)
+    -- A countdown shares the icon with the stack count, so it takes the same
+    -- step down, and never goes below legible.
+    size = math.max(8, size - 2)
+
+    local signature = tostring(face) .. ":" .. tostring(size) .. ":" .. tostring(outline)
+    if cooldown.pufCountdownFont == signature then return true end
+
+    local applied = false
+    for _, region in ipairs({ cooldown:GetRegions() }) do
+        if region and region.GetObjectType and region:GetObjectType() == "FontString" then
+            if region:SetFont(face, size, outline) ~= false then
+                applied = true
+            end
+        end
+    end
+
+    if applied then
+        cooldown.pufCountdownFont = signature
+    end
+    return applied
+end
+
 function Style.GetTexture(cfg)
     if cfg and cfg.barTexture then return cfg.barTexture end
 

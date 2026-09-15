@@ -63,6 +63,14 @@ local function DecorateButton(button, size, cfg)
     local text = Style.Colors.text
     button.pufCount:SetTextColor(text.r, text.g, text.b)
 
+    -- The duration numbers are the client's, not ours, and it sizes them from
+    -- the frame's scale rather than from the icon - so on a scaled UI they
+    -- arrive far larger than the stack count sitting beside them. Sized here,
+    -- and again after the first cooldown, because the font string does not exist
+    -- until the client has drawn a number on it.
+    button.pufCfg = cfg
+    Style.ApplyCountdownFont(button.pufCooldown, cfg)
+
     return button
 end
 
@@ -389,6 +397,10 @@ function AuraRow:UpdateFallback()
                 if not IsSecret(duration) and not IsSecret(expires)
                     and duration and expires and duration > 0 then
                     button.pufCooldown:SetCooldown(expires - duration, duration)
+                    -- The client has drawn a number by now, so the font string
+                    -- it belongs to exists and can be sized. Remembered once it
+                    -- takes, so this costs nothing on later updates.
+                    Style.ApplyCountdownFont(button.pufCooldown, button.pufCfg)
                 else
                     button.pufCooldown:Clear()
                 end
