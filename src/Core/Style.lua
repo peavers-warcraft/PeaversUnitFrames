@@ -165,7 +165,7 @@ function Style.SupportsAuraContainer()
         return false
     end
 
-    local ok, container, err = pcall(CreateFrame, "AuraContainer", nil, UIParent,
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, UIParent,
         Style.AURA_CONTAINER_TEMPLATE)
     if not ok then
         auraContainerSupported = false

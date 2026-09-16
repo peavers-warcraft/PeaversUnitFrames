@@ -23,7 +23,6 @@ CastBar.__index = CastBar
 
 local IsSecret = Style.IsSecret
 local Safe = Style.Safe
-local ReadBool = Style.ReadBool
 local Present = Style.Present
 
 -- StatusBar:SetTimerDuration interpolation / direction constants.
