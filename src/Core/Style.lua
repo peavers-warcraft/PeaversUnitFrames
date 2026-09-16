@@ -165,7 +165,7 @@ function Style.SupportsAuraContainer()
     -- a client that has it. The CreateFrame below is the real test, and on a
     -- client without the object it fails and is caught.
 
-    local ok, container, err = pcall(CreateFrame, "AuraContainer", nil, UIParent,
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, UIParent,
         Style.AURA_CONTAINER_TEMPLATE)
     if not ok then
         auraContainerSupported = false
