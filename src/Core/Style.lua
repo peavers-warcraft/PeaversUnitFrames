@@ -158,12 +158,12 @@ function Style.SupportsAuraContainer()
         return false
     end
 
-    local build = select(4, GetBuildInfo())
-    if type(build) ~= "number" or build < 120100 then
-        auraContainerSupported = false
-        auraContainerReason = "build " .. tostring(build) .. " < 120100"
-        return false
-    end
+    -- No interface-number threshold here. This used to require >= 120100, which
+    -- is the wrong question: WoW Forever reports interface 16001 and ships the
+    -- AuraContainer anyway (probed on the beta - created from the template, with
+    -- a working AddAuraGroup), so the threshold took the preferred path away from
+    -- a client that has it. The CreateFrame below is the real test, and on a
+    -- client without the object it fails and is caught.
 
     local ok, container, err = pcall(CreateFrame, "AuraContainer", nil, UIParent,
         Style.AURA_CONTAINER_TEMPLATE)
