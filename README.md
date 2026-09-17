@@ -36,7 +36,7 @@ Scenarios driven against the real addon source, outside the game:
 | channel, 3s at 144fps | 1.07 | 430 frames driven, one bar |
 | idle, nothing casting | 0.00 | frame hidden, never ticked |
 
-<sub>3,355 lines of Lua · 119.1 KB packaged · no bundled libraries</sub>
+<sub>3,354 lines of Lua · 119.1 KB packaged · no bundled libraries</sub>
 
 <!-- perf:end -->
 
