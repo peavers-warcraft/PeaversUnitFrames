@@ -277,7 +277,9 @@ function AuraRow:BuildContainer()
             -- exposing the aura data to this addon.
             pcall(button.SetIcon, button, button.pufIcon)
             pcall(button.SetApplicationCount, button, button.pufCount)
-            pcall(button.SetAuraBorder, button, button.pufBorder)
+            -- AddDispelTypeTexture, not SetAuraBorder: 12.1.5 removed that alias,
+            -- and the pcall would have swallowed the nil call without a word.
+            pcall(button.AddDispelTypeTexture, button, button.pufBorder)
             pcall(button.SetMouseMotionEnabled, button, true)
         end,
     })
