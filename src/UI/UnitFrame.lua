@@ -117,6 +117,22 @@ end
 -- frames are unlocked.
 --------------------------------------------------------------------------------
 
+-- The mover's own blue box, for /puf unlock. In Edit Mode it is cleared:
+-- Blizzard's selection overlay is the handle there, and a second coloured box
+-- underneath it is two looks for one frame.
+function UnitFrame:PaintMover(painted)
+    local mover = self.mover
+    if not mover then return end
+
+    if painted then
+        mover:SetBackdropColor(0.29, 0.56, 0.89, 0.35)
+        mover:SetBackdropBorderColor(0.29, 0.56, 0.89, 1)
+    else
+        mover:SetBackdropColor(0, 0, 0, 0)
+        mover:SetBackdropBorderColor(0, 0, 0, 0)
+    end
+end
+
 function UnitFrame:BuildMover()
     local mover = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     mover:SetFrameStrata("DIALOG")
@@ -126,8 +142,8 @@ function UnitFrame:BuildMover()
     mover:Hide()
 
     mover:SetBackdrop(Style.BACKDROP)
-    mover:SetBackdropColor(0.29, 0.56, 0.89, 0.35)
-    mover:SetBackdropBorderColor(0.29, 0.56, 0.89, 1)
+    self.mover = mover
+    self:PaintMover(true)
 
     local label = mover:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     label:SetPoint("CENTER")
@@ -139,8 +155,6 @@ function UnitFrame:BuildMover()
         frame:StopMovingOrSizing()
         self:CommitMoverPosition()
     end)
-
-    self.mover = mover
 end
 
 -- Translate the mover's screen position into a centre-relative offset and push
@@ -222,12 +236,14 @@ function UnitFrame:SetEditModeShown(shown)
         -- The overlay draws the system name itself, so the mover's own label
         -- would only print it twice.
         mover.label:Hide()
+        self:PaintMover(false)
         self:SyncMover()
         mover:Show()
     else
         mover:SetFrameStrata("DIALOG")
         mover:EnableMouse(true)
         mover.label:Show()
+        self:PaintMover(true)
         -- Edit Mode clears movable on every frame it had selected as it closes,
         -- so this has to be put back or the drag handles stop dragging for
         -- anyone who opened Edit Mode once and then went back to /puf unlock.
