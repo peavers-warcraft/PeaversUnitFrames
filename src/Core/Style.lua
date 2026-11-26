@@ -774,15 +774,17 @@ end
 local IS_FOREVER = _G.PeaversCommons and _G.PeaversCommons.Client
     and _G.PeaversCommons.Client.isForever or false
 
-local SURNAME_SEPARATOR = (Constants and Constants.CharacterNameSeparatorConsts
-    and Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
+local SEPARATOR_CONSTS = Constants and rawget(Constants, "CharacterNameSeparatorConsts")
+local SURNAME_SEPARATOR = (SEPARATOR_CONSTS
+    and rawget(SEPARATOR_CONSTS, "CHARACTERNAME_SURNAME_SEPARATOR")) or " "
 
 -- Your own surname follows Blizzard's "My Surname" preference, like the
 -- client's own frames. Everyone else's is always shown.
 local function HideOwnSurname(unit)
     local PI = C_PlayerInfo
-    if not (PI and PI.ShouldDisplaySurname) then return false end
-    if SafeBool(PI.ShouldDisplaySurname) ~= false then return false end
+    local shouldDisplaySurname = PI and rawget(PI, "ShouldDisplaySurname")
+    if not shouldDisplaySurname then return false end
+    if SafeBool(shouldDisplaySurname) ~= false then return false end
     return SafeBool(UnitIsUnit, unit, "player") == true
 end
 
