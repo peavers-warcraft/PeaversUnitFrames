@@ -240,20 +240,99 @@ end
 local INTERPOLATE = Enum and Enum.StatusBarInterpolation
     and Enum.StatusBarInterpolation.ExponentialEaseOut
 
--- Set a bar's value, smoothing it natively where the build allows.
+--------------------------------------------------------------------------------
+-- Smooth bars
+--
+-- Two ways of easing a bar to its new value, picked per update:
+--   * a readable value -> our own short tween, an OnUpdate attached only while
+--                         the bar is actually moving and dropped the moment it
+--                         lands, so a bar at rest costs nothing
+--   * a secret value   -> the client's own interpolation, since arithmetic on a
+--                         secret is illegal and only the client may animate it
+--
+-- The tween exists because the client's easing alone did not read as smooth:
+-- it is quick enough that a large mana spend still looks like a jump, and the
+-- tween's length is ours to choose.
+--------------------------------------------------------------------------------
+
+local TWEEN_TIME = 0.35
+
+-- The bar's OnUpdate while a tween is in flight. Ease-out cubic: most of the
+-- travel happens early, so the bar answers at once and settles gently.
+local function TweenStep(bar, elapsed)
+    local t = (bar.pufTweenTime or 0) + elapsed
+    bar.pufTweenTime = t
+
+    local from, to = bar.pufTweenFrom, bar.pufTweenTo
+    if t >= TWEEN_TIME then
+        bar:SetValue(to)
+        bar.pufShown = to
+        bar.pufTweenTo = nil
+        bar:SetScript("OnUpdate", nil)
+        return
+    end
+
+    local p = 1 - (t / TWEEN_TIME)
+    local value = from + (to - from) * (1 - p * p * p)
+    bar:SetValue(value)
+    bar.pufShown = value
+end
+
+local function StopTween(bar)
+    if bar.pufTweenTo ~= nil then
+        bar.pufTweenTo = nil
+        bar:SetScript("OnUpdate", nil)
+    end
+end
+
+-- Set a bar's value, easing it there when the frame asks for smooth bars.
 --
 -- The value is very often secret, and that is not a problem worth guarding
 -- against: SetValue is one of the setters built to accept secrets. Only nil is
 -- filtered out, and IsSecret is asked first because comparing a secret to nil
 -- would itself be illegal.
-function Style.SetBarValue(bar, value)
-    if not IsSecret(value) and value == nil then return end
-
-    if INTERPOLATE and Style.Caps.barInterpolation then
-        bar:SetValue(value, INTERPOLATE)
-    else
-        bar:SetValue(value)
+function Style.SetBarValue(bar, value, smooth)
+    if IsSecret(value) then
+        -- What the bar shows is no longer a number we can start a tween from.
+        StopTween(bar)
+        bar.pufShown = nil
+        if smooth and INTERPOLATE and Style.Caps.barInterpolation then
+            bar:SetValue(value, INTERPOLATE)
+        else
+            bar:SetValue(value)
+        end
+        return
     end
+    if value == nil then return end
+
+    local shown = bar.pufShown
+    if not smooth or shown == nil then
+        StopTween(bar)
+        bar:SetValue(value)
+        bar.pufShown = value
+        return
+    end
+
+    -- Already there, or already on the way there. The refresh ticker hands the
+    -- same value over ten times a second; restarting the tween each time would
+    -- keep it from ever landing.
+    if bar.pufTweenTo == value then return end
+    if bar.pufTweenTo == nil and shown == value then return end
+
+    bar.pufTweenFrom = shown
+    bar.pufTweenTo = value
+    bar.pufTweenTime = 0
+    bar:SetScript("OnUpdate", TweenStep)
+end
+
+-- How a bar is currently being driven, for /puf debug.
+function Style.DescribeBarDrive(bar, smooth)
+    if not smooth then return "off" end
+    if bar.pufShown == nil then
+        return (INTERPOLATE and Style.Caps.barInterpolation) and "client easing (secret value)"
+            or "none (secret value, no client easing)"
+    end
+    return "tween"
 end
 
 --------------------------------------------------------------------------------
@@ -265,11 +344,19 @@ Style.Colors = {
     unknown = { r = 0.42, g = 0.44, b = 0.50 },
     dead = { r = 0.32, g = 0.32, b = 0.34 },
     offline = { r = 0.38, g = 0.38, b = 0.42 },
-    cast = { r = 0.29, g = 0.56, b = 0.89 },
-    castUninterruptible = { r = 0.55, g = 0.55, b = 0.60 },
-    castChannel = { r = 0.36, g = 0.68, b = 0.62 },
+    -- Muted, warm cast fills. A saturated blue bar under a saturated class
+    -- colour fought it for attention; a soft sand reads as "something is
+    -- happening" without shouting over the health bar it sits under.
+    cast = { r = 0.86, g = 0.82, b = 0.64 },
+    castUninterruptible = { r = 0.50, g = 0.50, b = 0.52 },
+    castChannel = { r = 0.60, g = 0.76, b = 0.66 },
     castFailed = { r = 0.78, g = 0.28, b = 0.28 },
+    -- Near-black behind every bar. The fill is drawn over it, so this is what
+    -- the missing part of a bar looks like.
+    barBg = { r = 0.067, g = 0.067, b = 0.067 },
     border = { r = 0, g = 0, b = 0 },
+    -- Border colour while the cursor is over a frame.
+    hover = { r = 1, g = 1, b = 1 },
     text = { r = 0.94, g = 0.94, b = 0.96 },
     textMuted = { r = 0.68, g = 0.68, b = 0.74 },
 }
@@ -285,6 +372,7 @@ Style.DebuffColors = {
 }
 
 local FLAT = "Interface\\Buttons\\WHITE8x8"
+Style.FLAT = FLAT
 
 Style.BACKDROP = {
     bgFile = FLAT,
@@ -293,12 +381,52 @@ Style.BACKDROP = {
     edgeSize = 1,
 }
 
+-- One physical screen pixel, in the frame's own units.
+--
+-- A "1" in frame units is only one pixel at a UI scale of exactly 1. Anywhere
+-- else the hairline lands between pixels and the client smears it into a soft
+-- grey two-pixel line, which is the difference between a crisp flat frame and a
+-- blurry one.
+function Style.PixelSize(frame)
+    local pixelUtil = _G.PixelUtil
+    if pixelUtil and pixelUtil.GetNearestPixelSize and frame and frame.GetEffectiveScale then
+        local ok, size = pcall(pixelUtil.GetNearestPixelSize, 1, frame:GetEffectiveScale(), 1)
+        if ok and type(size) == "number" and size > 0 then return size end
+    end
+    return 1
+end
+
+-- Backdrops keyed by edge size, so frames sharing a scale share a table rather
+-- than each allocating its own on every layout pass.
+local backdrops = {}
+
+local function BackdropFor(edge)
+    local backdrop = backdrops[edge]
+    if not backdrop then
+        backdrop = { bgFile = FLAT, edgeFile = FLAT, tile = true, edgeSize = edge }
+        backdrops[edge] = backdrop
+    end
+    return backdrop
+end
+
 -- Every frame in the addon gets the same treatment: a solid dark fill behind the
--- bars and a single black hairline, which is what gives the flat modern look.
+-- bars and a single black hairline one real pixel wide, which is what gives the
+-- flat modern look. Returns that pixel size so callers can inset by exactly it.
 function Style.ApplyBackdrop(frame, bgAlpha)
-    frame:SetBackdrop(Style.BACKDROP)
+    local edge = Style.PixelSize(frame)
+    frame:SetBackdrop(BackdropFor(edge))
     frame:SetBackdropColor(0, 0, 0, bgAlpha or 0.85)
-    frame:SetBackdropBorderColor(0, 0, 0, 1)
+    local border = frame.pufHover and Style.Colors.hover or Style.Colors.border
+    frame:SetBackdropBorderColor(border.r, border.g, border.b, 1)
+    return edge
+end
+
+-- Light the frame's hairline while the cursor is over it, so it is obvious which
+-- frame a click will land on.
+function Style.SetHover(frame, hovered)
+    frame.pufHover = hovered and true or nil
+    local border = hovered and Style.Colors.hover or Style.Colors.border
+    frame:SetBackdropBorderColor(border.r, border.g, border.b, 1)
 end
 
 -- Every appearance getter takes the owning frame's own config table: nothing here
@@ -324,8 +452,12 @@ function Style.GetFont(cfg)
     return face, size, outline or "OUTLINE"
 end
 
-function Style.ApplyFont(fontString, cfg, sizeDelta)
+-- `forceOutline` is for text that sits on artwork rather than on a flat bar: a
+-- stack count over a spell icon needs the outline to stay legible whatever the
+-- frame's own text style is.
+function Style.ApplyFont(fontString, cfg, sizeDelta, forceOutline)
     local face, size, outline = Style.GetFont(cfg)
+    if forceOutline then outline = "OUTLINE" end
     fontString:SetFont(face, size + (sizeDelta or 0), outline)
     if cfg and cfg.fontShadow then
         fontString:SetShadowOffset(1, -1)
@@ -375,6 +507,18 @@ function Style.ApplyCountdownFont(cooldown, cfg)
     return applied
 end
 
+-- The power bar's fill. "same" (the default) follows the health bar, so
+-- changing the frame's texture still changes both.
+Style.SAME_TEXTURE = "same"
+
+function Style.GetPowerTexture(cfg)
+    local texture = cfg and cfg.powerTexture
+    if texture == nil or texture == Style.SAME_TEXTURE then
+        return Style.GetTexture(cfg)
+    end
+    return texture
+end
+
 function Style.GetTexture(cfg)
     if cfg and cfg.barTexture then return cfg.barTexture end
 
@@ -393,6 +537,7 @@ end
 --------------------------------------------------------------------------------
 
 local FALLBACK_POWER = { r = 0.20, g = 0.40, b = 0.90 }
+local CLASS_MODE = { healthColorMode = "class" }
 
 -- Health bar colour. Class colour for players, faction colour for NPCs, and a
 -- neutral grey whenever the client will not tell us which (unit identity is
@@ -436,7 +581,21 @@ function Style.GetUnitColor(unit, cfg)
     return Style.Colors.unknown
 end
 
-function Style.GetPowerColor(unit)
+-- Power bar colour, by the frame's chosen mode:
+--   "power"  the colour of the resource itself - blue mana, red rage - which is
+--            the default and what every other unit frame does
+--   "class"  the same class / reaction colour the health bar takes
+--   "custom" one fixed colour for every unit
+function Style.GetPowerColor(unit, cfg)
+    local mode = cfg and cfg.powerColorMode
+    if mode == "custom" then
+        return cfg.powerColor or FALLBACK_POWER
+    end
+    if mode == "class" then
+        -- Class mode alone, so a custom *health* colour does not leak in here.
+        return Style.GetUnitColor(unit, CLASS_MODE)
+    end
+
     local powerType, powerToken = Safe(UnitPowerType, unit)
     if not PowerBarColor then return FALLBACK_POWER end
 
@@ -477,28 +636,40 @@ local ScaleTo100 = (CurveConstants and CurveConstants.ScaleTo100) or true
 local AbbreviateNumbers = _G.AbbreviateNumbers or _G.AbbreviateLargeNumbers
 local RoundToNearestString = C_StringUtil and C_StringUtil.RoundToNearestString
 
+-- A percentage from raw values, or nil when either is secret or missing.
+--
+-- Worked out by hand first, ahead of the percent APIs, because a readable number
+-- is one this addon can animate: the curve APIs hand back a secret even for a
+-- value that was never restricted, and a secret can only be eased by the client.
+-- IsSecret is asked before anything else, since even the nil test on a secret
+-- would be illegal.
+local function ReadablePercent(cur, max)
+    if IsSecret(cur) or IsSecret(max) then return nil end
+    if cur == nil or max == nil then return nil end
+    if max <= 0 then return 0 end
+    return (cur / max) * 100
+end
+
 -- A 0-100 health percentage. Frequently secret - display only, never compared.
 function Style.GetHealthPercent(unit)
+    local pct = ReadablePercent(Safe(UnitHealth, unit), Safe(UnitHealthMax, unit))
+    if pct ~= nil then return pct end
+
     if Style.Caps.healthPercent then
         return Safe(UnitHealthPercent, unit, true, ScaleTo100)
     end
-
-    local cur, max = Safe(UnitHealth, unit), Safe(UnitHealthMax, unit)
-    if IsSecret(cur) or IsSecret(max) then return nil end
-    if cur == nil or max == nil or max == 0 then return nil end
-    return (cur / max) * 100
+    return nil
 end
 
 -- Power takes the curve in a different argument slot to health.
 function Style.GetPowerPercent(unit)
+    local pct = ReadablePercent(Safe(UnitPower, unit), Safe(UnitPowerMax, unit))
+    if pct ~= nil then return pct end
+
     if Style.Caps.powerPercent then
         return Safe(UnitPowerPercent, unit, nil, false, ScaleTo100)
     end
-
-    local cur, max = Safe(UnitPower, unit), Safe(UnitPowerMax, unit)
-    if IsSecret(cur) or IsSecret(max) then return nil end
-    if cur == nil or max == nil or max == 0 then return nil end
-    return (cur / max) * 100
+    return nil
 end
 
 --------------------------------------------------------------------------------
@@ -508,14 +679,24 @@ end
 -- is fixed and only the value changes.
 --------------------------------------------------------------------------------
 
-function Style.ApplyHealthToBar(bar, unit)
+-- The range is set once rather than on every update. SetMinMaxValues takes an
+-- interpolation argument of its own that defaults to Immediate, and calling it
+-- ahead of each SetValue snapped the bar to its target - which is what made
+-- smoothing look like it was never on.
+local function EnsurePercentRange(bar)
+    if bar.pufPercentRange then return end
     bar:SetMinMaxValues(0, 100)
-    Style.SetBarValue(bar, Style.GetHealthPercent(unit))
+    bar.pufPercentRange = true
 end
 
-function Style.ApplyPowerToBar(bar, unit)
-    bar:SetMinMaxValues(0, 100)
-    Style.SetBarValue(bar, Style.GetPowerPercent(unit))
+function Style.ApplyHealthToBar(bar, unit, smooth)
+    EnsurePercentRange(bar)
+    Style.SetBarValue(bar, Style.GetHealthPercent(unit), smooth)
+end
+
+function Style.ApplyPowerToBar(bar, unit, smooth)
+    EnsurePercentRange(bar)
+    Style.SetBarValue(bar, Style.GetPowerPercent(unit), smooth)
 end
 
 --------------------------------------------------------------------------------
@@ -578,7 +759,7 @@ function Style.BuildHealthText(unit, mode)
 
     if mode == "percent" and pctText then return pctText end
     if mode == "value" and curText then return curText end
-    if mode == "both" and curText and pctText then return curText .. "  " .. pctText end
+    if mode == "both" and curText and pctText then return curText .. " | " .. pctText end
 
     return pctText or curText or ""
 end
@@ -586,10 +767,65 @@ end
 -- Unit name. In combat the name of anything that is not the player or their pet
 -- comes back secret; FontString:SetText accepts secrets, so the caller can still
 -- display it, we just must not measure or truncate it here.
+--
+-- WoW Forever characters carry a surname, which UnitName hands back as its
+-- second value - the same slot that holds the realm on retail, which is why it
+-- is only ever read on Forever. Blizzard's own frames there show "First Last".
+local IS_FOREVER = _G.PeaversCommons and _G.PeaversCommons.Client
+    and _G.PeaversCommons.Client.isForever or false
+
+local SURNAME_SEPARATOR = (Constants and Constants.CharacterNameSeparatorConsts
+    and Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
+
+-- Your own surname follows Blizzard's "My Surname" preference, like the
+-- client's own frames. Everyone else's is always shown.
+local function HideOwnSurname(unit)
+    local PI = C_PlayerInfo
+    if not (PI and PI.ShouldDisplaySurname) then return false end
+    if SafeBool(PI.ShouldDisplaySurname) ~= false then return false end
+    return SafeBool(UnitIsUnit, unit, "player") == true
+end
+
+-- Joined names cached per pair, so the target-of-target ticker repainting the
+-- same name ten times a second builds no new strings. Only readable names reach
+-- the cache: a secret cannot be used as a table key.
+local fullNames = {}
+
+local function WithSurname(unit, name, surname)
+    if not Present(surname) then return name end
+    if HideOwnSurname(unit) then return name end
+
+    if IsSecret(name) or IsSecret(surname) then
+        -- Joining two strings is permitted on a secret even though looking at
+        -- either is not, so a restricted name still shows in full. An empty
+        -- secret surname would leave a trailing separator, which is a space
+        -- and draws as nothing.
+        local ok, joined = pcall(function() return name .. SURNAME_SEPARATOR .. surname end)
+        return ok and joined or name
+    end
+
+    if type(name) ~= "string" or type(surname) ~= "string" or surname == "" then return name end
+
+    local row = fullNames[name]
+    if not row then
+        row = {}
+        fullNames[name] = row
+    end
+    local full = row[surname]
+    if not full then
+        local tail = SURNAME_SEPARATOR .. surname
+        -- Some units already carry the surname in the first value.
+        full = (name:sub(-#tail) == tail) and name or (name .. tail)
+        row[surname] = full
+    end
+    return full
+end
+
 function Style.GetUnitName(unit)
-    local name = Safe(UnitName, unit)
+    local name, surname = Safe(UnitName, unit)
     -- Truth-testing a secret string is permitted; comparing it is not.
     if not Present(name) then return "" end
+    if IS_FOREVER then return WithSurname(unit, name, surname) end
     return name
 end
 
@@ -643,6 +879,11 @@ function Style.Diagnose(unit)
             IsSecret(minValue) and "<secret>" or tostring(minValue),
             IsSecret(maxValue) and "<secret>" or tostring(maxValue),
             IsSecret(value) and "<secret>" or tostring(value))
+
+        local smooth = PUF.Config:GetUnit(unit).smoothBars ~= false
+        add("  smoothing: health=%s power=%s",
+            Style.DescribeBarDrive(frame.health, smooth),
+            Style.DescribeBarDrive(frame.power, smooth))
 
         -- Where our own cast bar actually is. If this reports it anchored to the
         -- unit button, any stray bar on screen belongs to something else.

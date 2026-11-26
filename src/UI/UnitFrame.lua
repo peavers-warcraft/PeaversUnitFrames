@@ -21,8 +21,6 @@ local UnitFrame = {}
 PUF.UnitFrame = UnitFrame
 UnitFrame.__index = UnitFrame
 
-local INSET = 1
-
 --------------------------------------------------------------------------------
 -- Construction
 --------------------------------------------------------------------------------
@@ -44,16 +42,40 @@ function UnitFrame.New(_, key, unit)
     button:SetAttribute("*type2", "togglemenu")
     button:RegisterForClicks("AnyUp")
     button:SetScript("OnEnter", function(frame) self:OnEnter(frame) end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function(frame)
+        Style.SetHover(frame, false)
+        GameTooltip:Hide()
+    end)
     self.button = button
+
+    local barBg = Style.Colors.barBg
+
+    -- Square portrait, drawn on the button itself. Its backing square is what
+    -- shows for the moment before the client has a portrait to hand over.
+    local portraitBg = button:CreateTexture(nil, "BACKGROUND", nil, 1)
+    portraitBg:SetColorTexture(0.1, 0.1, 0.1, 1)
+    self.portraitBg = portraitBg
+
+    local portrait = button:CreateTexture(nil, "ARTWORK")
+    -- Zoomed in on the face: the full portrait is a circle on a square, and its
+    -- corners are empty.
+    portrait:SetTexCoord(0.15, 0.85, 0.15, 0.85)
+    self.portrait = portrait
 
     local health = CreateFrame("StatusBar", nil, button)
     health:SetMinMaxValues(0, 100)
     health:SetValue(100)
     self.health = health
 
-    -- Empty portion of the bar, tinted from the same colour so a wounded unit
-    -- still reads as "that class" rather than as a black gap.
+    -- Near-black under the fill, so the missing part of the bar reads as
+    -- missing rather than as a dimmer copy of the colour.
+    local healthBase = health:CreateTexture(nil, "BACKGROUND", nil, -1)
+    healthBase:SetAllPoints(health)
+    healthBase:SetColorTexture(barBg.r, barBg.g, barBg.b, 1)
+    self.healthBase = healthBase
+
+    -- Optional tint over that base from the bar's own colour, for anyone who
+    -- wants a wounded unit to still read as "that class". Off by default.
     local healthBg = health:CreateTexture(nil, "BACKGROUND")
     healthBg:SetAllPoints(health)
     self.healthBg = healthBg
@@ -65,7 +87,7 @@ function UnitFrame.New(_, key, unit)
 
     local powerBg = power:CreateTexture(nil, "BACKGROUND")
     powerBg:SetAllPoints(power)
-    powerBg:SetColorTexture(0, 0, 0, 0.7)
+    powerBg:SetColorTexture(barBg.r, barBg.g, barBg.b, 1)
     self.powerBg = powerBg
 
     local nameText = health:CreateFontString(nil, "OVERLAY")
@@ -89,6 +111,10 @@ function UnitFrame.New(_, key, unit)
 end
 
 function UnitFrame:OnEnter(frame)
+    -- The border lights whatever the tooltip setting says: it is how you know
+    -- which frame a click is about to land on.
+    Style.SetHover(frame, true)
+
     local mode = PUF.Config:GetUnit(self.key).tooltip or "always"
 
     if mode == "never" then return end
@@ -283,52 +309,89 @@ function UnitFrame:ApplyLayout()
         self:ApplyPosition()
     end
 
-    Style.ApplyBackdrop(button, cfg.bgAlpha)
+    -- One real screen pixel. Every inset below is measured in it, so the
+    -- hairline border, the portrait edge and the bars all land on whole pixels
+    -- whatever the UI scale.
+    local px = Style.ApplyBackdrop(button, cfg.bgAlpha)
 
     local width = cfg.width or 200
+    local height = cfg.height or 40
     local showPower = cfg.showPower and true or false
-    local powerHeight = showPower and (cfg.powerHeight or 5) or 0
+    local powerHeight = showPower and (cfg.powerHeight or 6) or 0
     local texture = Style.GetTexture(cfg)
 
-    -- Health fills everything above the power strip.
+    -- The portrait is a square as tall as the inside of the frame, carved out
+    -- of one end. The bars start a pixel past it, so the frame's own black fill
+    -- shows through as the divider.
+    local showPortrait = cfg.showPortrait and true or false
+    local portraitSize = height - (px * 2)
+    -- Never let the portrait eat the bars on a short, narrow frame.
+    if portraitSize > width / 2 then showPortrait = false end
+
+    local leftInset, rightInset = px, px
+    if showPortrait then
+        local onLeft = cfg.portraitSide == "left"
+        local point = onLeft and "TOPLEFT" or "TOPRIGHT"
+        local x = onLeft and px or -px
+
+        self.portraitBg:ClearAllPoints()
+        self.portraitBg:SetPoint(point, button, point, x, -px)
+        self.portraitBg:SetSize(portraitSize, portraitSize)
+        self.portrait:ClearAllPoints()
+        self.portrait:SetAllPoints(self.portraitBg)
+
+        if onLeft then
+            leftInset = px + portraitSize + px
+        else
+            rightInset = px + portraitSize + px
+        end
+    end
+    self.showPortrait = showPortrait
+    self.portraitBg:SetShown(showPortrait)
+    self.portrait:SetShown(showPortrait)
+
+    -- Health fills everything above the power strip, flush against it: one
+    -- border round the whole frame and no seams inside it.
     self.health:ClearAllPoints()
-    self.health:SetPoint("TOPLEFT", button, "TOPLEFT", INSET, -INSET)
-    self.health:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -INSET,
-        INSET + (showPower and (powerHeight + 1) or 0))
+    self.health:SetPoint("TOPLEFT", button, "TOPLEFT", leftInset, -px)
+    self.health:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -rightInset,
+        px + (showPower and powerHeight or 0))
     self.health:SetStatusBarTexture(texture)
     self.healthBg:SetTexture(texture)
 
     self.power:ClearAllPoints()
-    self.power:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", INSET, INSET)
-    self.power:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -INSET, INSET)
+    self.power:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", leftInset, px)
+    self.power:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -rightInset, px)
     self.power:SetHeight(powerHeight > 0 and powerHeight or 1)
-    self.power:SetStatusBarTexture(texture)
+    self.power:SetStatusBarTexture(Style.GetPowerTexture(cfg))
     self.power:SetShown(showPower)
 
     Style.ApplyFont(self.nameText, cfg)
     Style.ApplyFont(self.healthText, cfg)
 
     self.nameText:ClearAllPoints()
-    self.nameText:SetPoint("LEFT", self.health, "LEFT", 4, 0)
-    self.nameText:SetPoint("RIGHT", self.healthText, "LEFT", -4, 0)
+    self.nameText:SetPoint("LEFT", self.health, "LEFT", 5, 0)
+    self.nameText:SetPoint("RIGHT", self.healthText, "LEFT", -5, 0)
+    self.nameText:SetWordWrap(false)
     self.nameText:SetShown(cfg.showName and true or false)
 
     self.healthText:ClearAllPoints()
-    self.healthText:SetPoint("RIGHT", self.health, "RIGHT", -4, 0)
+    self.healthText:SetPoint("RIGHT", self.health, "RIGHT", -5, 0)
     self.healthText:SetShown(cfg.healthText ~= "none")
 
     local text = Style.Colors.text
     self.nameText:SetTextColor(text.r, text.g, text.b)
     self.healthText:SetTextColor(text.r, text.g, text.b)
 
-    -- Cast bar sits directly under the frame; debuffs clear it.
-    local castHeight = cfg.castBarHeight or 18
+    -- Cast bar hangs flush off the bottom of the frame, sharing its bottom
+    -- hairline so the two read as one block; debuffs clear it.
+    local castHeight = cfg.castBarHeight or 16
     local showCast = (cfg.showCastBar and true or false)
     self.castBar:SetEnabled(showCast)
-    self.castBar:Layout(button, cfg, width, castHeight, cfg.castBarIcon and true or false)
+    self.castBar:Layout(button, cfg, width, castHeight, cfg.castBarIcon and true or false, px)
 
-    local auraSize = cfg.auraSize or 20
-    local auraSpacing = cfg.auraSpacing or 2
+    local auraSize = cfg.auraSize or 22
+    local auraSpacing = cfg.auraSpacing or 1
 
     self.buffs:SetConfig(cfg)
     self.debuffs:SetConfig(cfg)
@@ -340,7 +403,7 @@ function UnitFrame:ApplyLayout()
 
     -- Layout before SetEnabled: the rows need their capacity before they can
     -- populate themselves.
-    self.buffs:Layout(button, "BOTTOMLEFT", "TOPLEFT", 0, 4,
+    self.buffs:Layout(button, "BOTTOMLEFT", "TOPLEFT", 0, 2,
         cfg.maxBuffs or 8, auraSize, auraSpacing)
     self.buffs:SetEnabled(cfg.showBuffs and true or false)
 
@@ -356,7 +419,8 @@ function UnitFrame:ApplyLayout()
         1, auraSize, auraSpacing)
     self.mount:SetEnabled(showMount)
 
-    local debuffOffset = -4 - (showCast and (castHeight + 4) or 0)
+    -- The cast bar overlaps the frame by its shared hairline, hence the - px.
+    local debuffOffset = -2 - (showCast and (castHeight - px) or 0)
     self.debuffs:Layout(button, "TOPLEFT", "BOTTOMLEFT", 0, debuffOffset,
         cfg.maxDebuffs or 8, auraSize, auraSpacing)
     self.debuffs:SetEnabled(cfg.showDebuffs and true or false)
@@ -369,8 +433,19 @@ end
 -- Updates
 --------------------------------------------------------------------------------
 
+-- Whether this update should ease the bars or snap them.
+--
+-- A frame that has just been pointed at a different unit always snaps: easing
+-- there would slide the bar from the old target's health to the new one's,
+-- which is an animation of nothing that actually happened. The flag is one-shot
+-- and cleared by UpdateAll once both bars have taken it.
+function UnitFrame:ShouldSmooth()
+    if self.snapNext then return false end
+    return PUF.Config:GetUnit(self.key).smoothBars ~= false
+end
+
 function UnitFrame:UpdateHealth()
-    Style.ApplyHealthToBar(self.health, self.unit)
+    Style.ApplyHealthToBar(self.health, self.unit, self:ShouldSmooth())
 
     if self.healthText:IsShown() then
         -- The text may be a secret string built from a restricted health value;
@@ -383,7 +458,7 @@ end
 
 function UnitFrame:UpdatePower()
     if not self.power:IsShown() then return end
-    Style.ApplyPowerToBar(self.power, self.unit)
+    Style.ApplyPowerToBar(self.power, self.unit, self:ShouldSmooth())
 end
 
 function UnitFrame:UpdateName()
@@ -399,8 +474,16 @@ function UnitFrame:UpdateColors()
     self.health:SetStatusBarColor(color.r, color.g, color.b)
     self.healthBg:SetVertexColor(color.r, color.g, color.b, cfg.healthBgAlpha or 0.22)
 
-    local powerColor = Style.GetPowerColor(self.unit)
+    local powerColor = Style.GetPowerColor(self.unit, cfg)
     self.power:SetStatusBarColor(powerColor.r, powerColor.g, powerColor.b)
+end
+
+-- SetPortraitTexture takes the unit token, not any of the unit's data, so there
+-- is nothing secret here to guard against; the pcall is for a client that ever
+-- refuses the call outright.
+function UnitFrame:UpdatePortrait()
+    if not self.showPortrait then return end
+    pcall(SetPortraitTexture, self.portrait, self.unit)
 end
 
 function UnitFrame:UpdateAuras()
@@ -416,8 +499,10 @@ end
 function UnitFrame:UpdateAll()
     self:UpdateColors()
     self:UpdateName()
+    self:UpdatePortrait()
     self:UpdateHealth()
     self:UpdatePower()
+    self.snapNext = nil
     self:UpdateAuras()
     self.castBar:Refresh()
 end
