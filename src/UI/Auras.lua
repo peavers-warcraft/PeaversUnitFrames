@@ -43,9 +43,7 @@ local function DecorateButton(button, size, cfg)
         button.pufBorder = border
 
         local icon = button:CreateTexture(nil, "ARTWORK")
-        icon:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
-        icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         button.pufIcon = icon
 
         local cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
@@ -59,7 +57,17 @@ local function DecorateButton(button, size, cfg)
         button.pufCount = count
     end
 
-    Style.ApplyFont(button.pufCount, cfg, -2)
+    -- Always outlined: a stack count sits on spell art, not on a flat bar, and
+    -- the frame's soft shadow alone vanishes against a bright icon.
+    Style.ApplyFont(button.pufCount, cfg, 0, true)
+
+    -- The black square behind the icon shows round its edge as a one-pixel
+    -- border; measured in real pixels so it stays a crisp line at any scale.
+    local px = Style.PixelSize(button)
+    local icon = button.pufIcon
+    icon:ClearAllPoints()
+    icon:SetPoint("TOPLEFT", button, "TOPLEFT", px, -px)
+    icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -px, px)
     local text = Style.Colors.text
     button.pufCount:SetTextColor(text.r, text.g, text.b)
 

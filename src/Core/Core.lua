@@ -27,6 +27,8 @@ local UNIT_EVENTS = {
     "UNIT_CONNECTION",
     "UNIT_FLAGS",
     "UNIT_AURA",
+    "UNIT_PORTRAIT_UPDATE",
+    "UNIT_MODEL_CHANGED",
 }
 
 local CAST_EVENTS = {
@@ -168,6 +170,8 @@ function Core:OnEvent(event, unit)
         frame:UpdatePower()
     elseif event == "UNIT_NAME_UPDATE" then
         frame:UpdateName()
+    elseif event == "UNIT_PORTRAIT_UPDATE" or event == "UNIT_MODEL_CHANGED" then
+        frame:UpdatePortrait()
     elseif event == "UNIT_FACTION" or event == "UNIT_CONNECTION" or event == "UNIT_FLAGS" then
         frame:UpdateColors()
         frame:UpdateHealth()
@@ -182,6 +186,9 @@ function Core:FullUpdate(key)
     if not frame or not frame.enabled then return end
 
     if Style.Exists(frame.unit) then
+        -- A full update is a change of unit, so the bars jump straight to the
+        -- new one rather than easing over from the old.
+        frame.snapNext = true
         frame:UpdateAll()
     else
         frame.castBar:Hide()

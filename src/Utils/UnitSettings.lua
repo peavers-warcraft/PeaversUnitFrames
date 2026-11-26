@@ -89,6 +89,20 @@ local ENTRIES = {
             { value = "never", label = "Never show" },
         },
     },
+    {
+        key = "showPortrait", label = "Show Portrait", kind = "checkbox",
+        section = "frame",
+        desc = "A square portrait of the unit inside the frame. It takes its room out of the bars, so the frame keeps its size.",
+    },
+    {
+        key = "portraitSide", label = "Portrait Side", kind = "dropdown",
+        section = "frame", fallback = "right",
+        values = {
+            { value = "left", label = "Left" },
+            { value = "right", label = "Right" },
+        },
+        disabled = function(cfg) return not cfg.showPortrait end,
+    },
 
  -------------------------------------------------------------- position ---
     -- Dragging gets a frame roughly where you want it; lining two frames up
@@ -135,6 +149,11 @@ local ENTRIES = {
         min = 0, max = 1, step = 0.05, unit = "percent",
     },
     {
+        key = "smoothBars", label = "Smooth Bars", kind = "checkbox",
+        section = "bars",
+        desc = "Health and power glide to each new value instead of jumping to it.",
+    },
+    {
         key = "showPower", label = "Show Power Bar", kind = "checkbox",
         section = "bars",
     },
@@ -142,6 +161,45 @@ local ENTRIES = {
         key = "powerHeight", label = "Power Bar Height", kind = "slider",
         section = "bars",
         min = 2, max = 14, step = 1, unit = "px",
+        disabled = function(cfg) return not cfg.showPower end,
+    },
+    {
+        key = "powerColorMode", label = "Power Bar Colour", kind = "dropdown",
+        section = "bars", fallback = "power",
+        -- Choosing "custom" reveals the colour swatch below.
+        revealsOthers = true,
+        values = {
+            { value = "power", label = "Power type" },
+            { value = "class", label = "Class / reaction" },
+            { value = "custom", label = "Single colour" },
+        },
+        disabled = function(cfg) return not cfg.showPower end,
+    },
+    {
+        key = "powerColor", label = "Power Custom Colour", kind = "color",
+        section = "bars",
+        hidden = function(cfg) return cfg.powerColorMode ~= "custom" end,
+        disabled = function(cfg) return not cfg.showPower end,
+    },
+    {
+        key = "powerTexture", label = "Power Bar Texture", kind = "dropdown",
+        section = "bars", height = 300, fallback = "same",
+        desc = "Give the power bar a fill of its own, or keep it matching the health bar.",
+        -- "Same as health bar" first, then the collection's textures in the
+        -- order the shared texture list sorts them.
+        values = function()
+            local out = { { value = "same", label = "Same as health bar" } }
+            local ConfigManager = PeaversCommons and PeaversCommons.ConfigManager
+            local textures = ConfigManager and ConfigManager.GetBarTextures
+                and ConfigManager.GetBarTextures() or {}
+            local sorted = {}
+            for path, label in pairs(textures) do
+                sorted[#sorted + 1] = { value = path, label = label }
+            end
+            table.sort(sorted, function(a, b) return a.label < b.label end)
+            for _, option in ipairs(sorted) do out[#out + 1] = option end
+            return out
+        end,
         disabled = function(cfg) return not cfg.showPower end,
     },
 

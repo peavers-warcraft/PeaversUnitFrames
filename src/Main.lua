@@ -51,7 +51,11 @@ PeaversCommons.SlashCommands:Register(addonName, "puf", {
 })
 
 PeaversCommons.Events:Init(addonName, function()
+    -- Before Initialize: it works on the raw saved table, ahead of AceDB
+    -- layering the new defaults underneath it.
+    PUF.Config:PreserveLegacyLook()
     PUF.Config:Initialize()
+    PUF.Config:StampDefaultsVersion()
 
     PUF.Core:Initialize()
 

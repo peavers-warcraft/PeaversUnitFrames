@@ -55,7 +55,9 @@ asserted.
 
 <!-- peavers:features -->
 - Four frames and nothing else: player, target, target of target, and focus
-- Flat modern bars — class or reaction coloured health, a thin power strip, name and health text
+- Flat modern bars — class or reaction coloured health over a near-black background, a thin power strip and the cast bar flush inside one pixel-exact border, name and health text with a soft shadow
+- A square portrait on the player, target and focus frames, on either side
+- The frame border lights up under the cursor, so you can see which frame a click lands on
 - A cast bar per frame with the spell icon, name, and remaining time
 - Buff and debuff rows above and below each frame, with stacks, timers, and dispel-type borders
 - Per-frame aura filtering by caster (everyone's / only mine / only others) and by category — cancelable buffs, major defensives, debuffs you can dispel, crowd control

@@ -59,7 +59,8 @@ function CastBar.New(_, parent, unit)
 
     local bg = bar:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(bar)
-    bg:SetColorTexture(0.1, 0.1, 0.12, 0.6)
+    local barBg = Style.Colors.barBg
+    bg:SetColorTexture(barBg.r, barBg.g, barBg.b, 1)
     self.bg = bg
 
     local spellText = bar:CreateFontString(nil, "OVERLAY")
@@ -79,16 +80,18 @@ end
 -- Layout
 --------------------------------------------------------------------------------
 
-function CastBar:Layout(anchorFrame, cfg, width, height, showIcon)
+-- `overlap` pulls the bar up over the frame above by that much. Passed the
+-- frame's own pixel size, the two hairlines land on each other and the cast bar
+-- reads as part of the frame rather than as a second box hanging under it.
+function CastBar:Layout(anchorFrame, cfg, width, height, showIcon, overlap)
     self.cfg = cfg
     local frame = self.frame
 
     frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", anchorFrame, "BOTTOMLEFT", 0, -4)
+    frame:SetPoint("TOPLEFT", anchorFrame, "BOTTOMLEFT", 0, overlap or -4)
     frame:SetSize(width, height)
-    Style.ApplyBackdrop(frame, cfg.bgAlpha)
+    local inset = Style.ApplyBackdrop(frame, cfg.bgAlpha)
 
-    local inset = 1
     local iconSize = height - (inset * 2)
 
     if showIcon then
@@ -101,16 +104,17 @@ function CastBar:Layout(anchorFrame, cfg, width, height, showIcon)
     end
 
     self.bar:ClearAllPoints()
-    self.bar:SetPoint("TOPLEFT", frame, "TOPLEFT", inset + (showIcon and (iconSize + 1) or 0), -inset)
+    self.bar:SetPoint("TOPLEFT", frame, "TOPLEFT", inset + (showIcon and (iconSize + inset) or 0), -inset)
     self.bar:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
     self.bar:SetStatusBarTexture(Style.GetTexture(cfg))
 
     Style.ApplyFont(self.spellText, cfg, -1)
-    Style.ApplyFont(self.timeText, cfg, -1)
+    Style.ApplyFont(self.timeText, cfg, -2)
 
     self.spellText:ClearAllPoints()
-    self.spellText:SetPoint("LEFT", self.bar, "LEFT", 4, 0)
-    self.spellText:SetPoint("RIGHT", self.timeText, "LEFT", -4, 0)
+    self.spellText:SetPoint("LEFT", self.bar, "LEFT", 5, 0)
+    self.spellText:SetPoint("RIGHT", self.timeText, "LEFT", -5, 0)
+    self.spellText:SetWordWrap(false)
 
     self.timeText:ClearAllPoints()
     self.timeText:SetPoint("RIGHT", self.bar, "RIGHT", -4, 0)
